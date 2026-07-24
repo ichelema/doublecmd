@@ -93,7 +93,7 @@ begin
   begin
     cx := CellRect.Left + ExpanderWidth div 2;
     cy := CellRect.Top + CellRect.Height div 2;
-    h := Max(3, ExpanderWidth div 4);
+    h := Max(3, ExpanderWidth div 6);
     if IsExpanded(AFile) then
     begin
       // triangle pointing down
