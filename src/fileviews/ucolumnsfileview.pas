@@ -110,7 +110,6 @@ type
     FExtensionColumn: Integer;
 
     pmColumnsMenu: TPopupMenu;
-    dgPanel: TDrawGridEx;
     FOnColumnResized: TColumnResized;
 
     function GetColumnsClass: TPanelColumnsClass;
@@ -157,6 +156,14 @@ type
     procedure CopyFileDetails(AList: TStringList);
 
   protected
+    dgPanel: TDrawGridEx;
+
+    {en
+       Hook for descendants (tree view): decorate the icon/name cell and
+       adjust its rectangle before icon and text are drawn.
+    }
+    procedure DecorateIconCell({%H-}ACanvas: TCanvas; {%H-}AFile: TDisplayFile; var {%H-}CellRect: TRect); virtual;
+
     procedure CreateDefault(AOwner: TWinControl); override;
 
     procedure BeforeMakeFileList; override;
@@ -926,6 +933,11 @@ begin
   inherited Create(AOwner, AConfig, ANode, AFlags);
 end;
 
+procedure TColumnsFileView.DecorateIconCell(ACanvas: TCanvas; AFile: TDisplayFile; var CellRect: TRect);
+begin
+  // Nothing by default; TTreeFileView draws expander and indents the cell.
+end;
+
 procedure TColumnsFileView.CreateDefault(AOwner: TWinControl);
 begin
   DCDebug('TColumnsFileView.Create components');
@@ -1565,12 +1577,16 @@ var
   //------------------------------------------------------
   var
     targetWidth: Integer;
+    R: TRect;
   begin
+    R := aRect;
+    ColumnsView.DecorateIconCell(Canvas, AFile, R);
+
     if (gShowIcons <> sim_none) then
     begin
       // center icon vertically
-      params.iconRect.Left:= aRect.Left + CELL_PADDING;
-      params.iconRect.Top:= aRect.Top + (aRect.Height - gIconsSize) div 2;
+      params.iconRect.Left:= R.Left + CELL_PADDING;
+      params.iconRect.Top:= R.Top + (R.Height - gIconsSize) div 2;
       params.iconRect.Width:= gIconsSize;
       params.iconRect.Height:= gIconsSize;
 
@@ -1602,15 +1618,15 @@ var
 
     if gCutTextToColWidth then
     begin
-      targetWidth:= (aRect.Width) - 2*CELL_PADDING;
+      targetWidth:= (R.Width) - 2*CELL_PADDING;
       if (gShowIcons <> sim_none) then targetWidth:= targetWidth - gIconsSize - 2;
       s:= FitFileName(s, Canvas, AFile.FSFile, targetWidth);
     end;
 
     if (gShowIcons <> sim_none) then
-      Canvas.TextOut(aRect.Left + CELL_PADDING + gIconsSize + 2, iTextTop, s)
+      Canvas.TextOut(R.Left + CELL_PADDING + gIconsSize + 2, iTextTop, s)
     else
-      Canvas.TextOut(aRect.Left + CELL_PADDING, iTextTop, s);
+      Canvas.TextOut(R.Left + CELL_PADDING, iTextTop, s);
   end; //of DrawIconCell
   //------------------------------------------------------
 

@@ -191,7 +191,7 @@ type
     procedure MainControlExit(Sender: TObject);
     procedure MainControlKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
     procedure MainControlKeyUp(Sender: TObject; var Key: Word; Shift: TShiftState);
-    procedure MainControlMouseDown(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+    procedure MainControlMouseDown(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Integer); virtual;
     procedure MainControlMouseLeave(Sender: TObject);
     procedure MainControlMouseMove(Sender: TObject; Shift: TShiftState; X, Y: Integer);
     procedure MainControlMouseUp(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
