@@ -18,6 +18,9 @@ type
   TTreeFileView = class(TColumnsFileView)
   private
     FExpandedPaths: TStringList;
+    FWatchedPaths: TStringList;
+    procedure AddSubdirWatch(const APath: String);
+    procedure RemoveSubdirWatches(const APrefix: String);
     function ExpanderWidth: Integer;
     function FileLevel(AFile: TDisplayFile): Integer;
     function IsExpandable(AFile: TDisplayFile): Boolean;
@@ -50,7 +53,7 @@ implementation
 uses
   Math, LCLType, uGlobs, uFileSource, uFileSystemFileSource, uFileSourceListOperation,
   uFileSourceOperationTypes, uFileSourceOperation, uFileSourceProperty,
-  uFileViewWorker, uFileSorting;
+  uFileViewWorker, uFileSorting, uFileSourceWatcher;
 
 { TTreeFileView }
 
@@ -59,12 +62,48 @@ begin
   inherited CreateDefault(AOwner);
   FExpandedPaths := TStringList.Create;
   FExpandedPaths.CaseSensitive := FileNameCaseSensitive;
+  FWatchedPaths := TStringList.Create;
+  FWatchedPaths.CaseSensitive := FileNameCaseSensitive;
 end;
 
 destructor TTreeFileView.Destroy;
 begin
+  if Assigned(FWatchedPaths) then
+    RemoveSubdirWatches(EmptyStr);
   inherited Destroy;
   FreeAndNil(FExpandedPaths);
+  FreeAndNil(FWatchedPaths);
+end;
+
+procedure TTreeFileView.AddSubdirWatch(const APath: String);
+var
+  WatchFilter: TFSWatchFilter;
+begin
+  if not FileSource.IsClass(TFileSystemFileSource) then Exit;
+  if FWatchedPaths.IndexOf(APath) >= 0 then Exit;
+
+  WatchFilter := [];
+  if watch_file_name_change in gWatchDirs then
+    Include(WatchFilter, wfFileNameChange);
+  if watch_attributes_change in gWatchDirs then
+    Include(WatchFilter, wfAttributesChange);
+  if WatchFilter = [] then Exit;
+
+  if FileSource.GetWatcher.addWatch(APath, WatchFilter, @WatcherEvent, Self) then
+    FWatchedPaths.Add(APath);
+end;
+
+procedure TTreeFileView.RemoveSubdirWatches(const APrefix: String);
+var
+  I: Integer;
+begin
+  for I := FWatchedPaths.Count - 1 downto 0 do
+    if (APrefix = EmptyStr) or
+       (Copy(FWatchedPaths[I], 1, Length(APrefix)) = APrefix) then
+    begin
+      FileSource.GetWatcher.removeWatch(FWatchedPaths[I], @WatcherEvent);
+      FWatchedPaths.Delete(I);
+    end;
 end;
 
 function TTreeFileView.calcFileHashKey(const FileName, APath: String): String;
@@ -165,6 +204,7 @@ begin
       end;
     end;
     FExpandedPaths.Add(AFile.FSFile.FullPath);
+    AddSubdirWatch(ChildrenPath);
   finally
     NewFiles.Free;  // does not own the display files
     AFiles.Free;    // frees the listed files; we inserted clones
@@ -179,6 +219,9 @@ var
   DF: TDisplayFile;
 begin
   Prefix := IncludeTrailingPathDelimiter(AFile.FSFile.FullPath);
+
+  // Stop watching this subtree (the prefix matches the dir itself too)
+  RemoveSubdirWatches(Prefix);
 
   // Forget expansion state of this directory and everything below it
   for I := FExpandedPaths.Count - 1 downto 0 do
@@ -462,16 +505,49 @@ end;
 procedure TTreeFileView.AfterChangePath;
 begin
   inherited AfterChangePath;
+  if Assigned(FWatchedPaths) then
+    RemoveSubdirWatches(EmptyStr);
   if Assigned(FExpandedPaths) then
     FExpandedPaths.Clear;
 end;
 
+function CompareByDepth(List: TStringList; Index1, Index2: Integer): Integer;
+var
+  I, D1, D2: Integer;
+begin
+  D1 := 0;
+  D2 := 0;
+  for I := 1 to Length(List[Index1]) do
+    if List[Index1][I] = PathDelim then Inc(D1);
+  for I := 1 to Length(List[Index2]) do
+    if List[Index2][I] = PathDelim then Inc(D2);
+  Result := D1 - D2;
+end;
+
 procedure TTreeFileView.FileSourceFileListLoaded;
+var
+  Saved: TStringList;
+  I, H: Integer;
 begin
   inherited FileSourceFileListLoaded;
-  // A fresh list from the worker has no expanded children (phase 5: re-apply)
-  if Assigned(FExpandedPaths) then
+  // A fresh list from the worker has no expanded children: re-apply the
+  // saved expansion state (parents first, vanished directories dropped).
+  if (FExpandedPaths = nil) or (FExpandedPaths.Count = 0) then Exit;
+  Saved := TStringList.Create;
+  try
+    Saved.Assign(FExpandedPaths);
     FExpandedPaths.Clear;
+    RemoveSubdirWatches(EmptyStr);
+    Saved.CustomSort(@CompareByDepth);
+    for I := 0 to Saved.Count - 1 do
+    begin
+      H := FHashedNames.Find(Saved[I]);  // keys are full paths
+      if H >= 0 then
+        ExpandDirectory(TDisplayFile(FHashedNames.List[H]^.Data));
+    end;
+  finally
+    Saved.Free;
+  end;
 end;
 
 function TTreeFileView.Clone(NewParent: TWinControl): TColumnsFileView;

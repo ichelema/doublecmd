@@ -216,8 +216,6 @@ type
     procedure LoadingFileListTimer(Sender: TObject);
     procedure FileSourceEventListener(var params: TFileSourceEventParams);
     procedure ReloadTimerEvent(Sender: TObject);
-    procedure WatcherEvent(const EventData: TFSWatcherEventData);
-
   protected
     FFlatView: Boolean;
     FFileFilter: String;
@@ -235,6 +233,7 @@ type
     // to identify files with the same name in different subdirectories
     function calcFileHashKey(const FileName, APath: String): String; virtual;
 
+    procedure WatcherEvent(const EventData: TFSWatcherEventData);
     procedure EnableWatcher(Enable: Boolean);
     {en
        Initializes parts of the view common to all creation methods.
