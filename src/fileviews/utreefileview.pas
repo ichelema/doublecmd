@@ -7,7 +7,7 @@ interface
 uses
   Classes, SysUtils, Graphics, Controls,
   DCXmlConfig,
-  uDisplayFile, uFileView, uColumnsFileView;
+  uDisplayFile, uFile, uFileView, uColumnsFileView;
 
 type
 
@@ -34,6 +34,7 @@ type
     procedure FileSourceFileListLoaded; override;
   public
     destructor Destroy; override;
+    procedure ChangePathToChild(const aFile: TFile); override;
     function Clone(NewParent: TWinControl): TColumnsFileView; override;
     procedure CloneTo(FileView: TFileView); override;
     procedure SaveConfiguration(AConfig: TXmlConfig; ANode: TXmlNode; ASaveHistory: Boolean); override;
@@ -42,8 +43,8 @@ type
 implementation
 
 uses
-  Math, uGlobs, uFile, uFileSource, uFileSourceListOperation,
-  uFileSourceOperationTypes, uFileSourceOperation,
+  Math, uGlobs, uFileSource, uFileSourceListOperation,
+  uFileSourceOperationTypes, uFileSourceOperation, uFileSourceProperty,
   uFileViewWorker, uFileSorting;
 
 { TTreeFileView }
@@ -267,6 +268,19 @@ begin
     end;
   end;
   inherited MainControlMouseDown(Sender, Button, Shift, X, Y);
+end;
+
+procedure TTreeFileView.ChangePathToChild(const aFile: TFile);
+begin
+  // An expanded child can live several levels below CurrentPath:
+  // enter it via its real path, not CurrentPath + name.
+  if Assigned(aFile) and aFile.IsNameValid and
+     (aFile.IsDirectory or aFile.IsLinkToDirectory) and
+     (aFile.Path <> CurrentPath) and
+     (not (fspDontChangePath in FileSource.Properties)) then
+    CurrentPath := IncludeTrailingPathDelimiter(aFile.FullPath)
+  else
+    inherited ChangePathToChild(aFile);
 end;
 
 procedure TTreeFileView.AfterChangePath;
