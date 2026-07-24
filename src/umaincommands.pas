@@ -2303,7 +2303,8 @@ begin
   with frmMain do
   begin
     GetParamValue(Params, 'columnset', AParam);
-    if (ActiveFrame is TColumnsFileView) then
+    // TTreeFileView inherits from TColumnsFileView: it must be replaced here
+    if (ActiveFrame is TColumnsFileView) and not (ActiveFrame is TTreeFileView) then
       TColumnsFileView(ActiveFrame).SetColumnSet(AParam)
     else begin
       aFileView:= TColumnsFileView.Create(ActiveNotebook.ActivePage, ActiveFrame, AParam);
@@ -2321,7 +2322,7 @@ begin
   with frmMain do
   begin
     GetParamValue(Params, 'columnset', AParam);
-    if (FrameLeft is TColumnsFileView) then
+    if (FrameLeft is TColumnsFileView) and not (FrameLeft is TTreeFileView) then
       TColumnsFileView(FrameLeft).SetColumnSet(AParam)
     else begin
       aFileView:= TColumnsFileView.Create(LeftTabs.ActivePage, FrameLeft, AParam);
@@ -2338,7 +2339,7 @@ begin
   with frmMain do
   begin
     GetParamValue(Params, 'columnset', AParam);
-    if (FrameRight is TColumnsFileView) then
+    if (FrameRight is TColumnsFileView) and not (FrameRight is TTreeFileView) then
       TColumnsFileView(FrameRight).SetColumnSet(AParam)
     else begin
       aFileView:= TColumnsFileView.Create(RightTabs.ActivePage, FrameRight, AParam);
