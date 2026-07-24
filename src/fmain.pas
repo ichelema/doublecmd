@@ -176,6 +176,7 @@ type
     actSaveTabs: TAction;
     actSyncDirs: TAction;
     actThumbnailsView: TAction;
+    actTreeFileView: TAction;
     actShellExecute: TAction;
     actRenameTab: TAction;
     actOperationsViewer: TAction;
@@ -291,6 +292,7 @@ type
     mnuContextDelete: TMenuItem;
     mnuContextView: TMenuItem;
     mnuThumbnailsView: TMenuItem;
+    mnuTreeFileView: TMenuItem;
     mnuColumnsView: TMenuItem;
     mnuBriefView: TMenuItem;
     miLine33: TMenuItem;
@@ -972,6 +974,7 @@ uses
   uVfsModule, fViewOperations, uMultiListFileSource,
   uFileSourceOperationTypes, uFileSourceCopyOperation, uFileSourceMoveOperation,
   uFileSourceProperty, uFileSourceExecuteOperation, uArchiveFileSource, uThumbFileView,
+  uTreeFileView,
   uShellExecute, fSymLink, fHardLink, uExceptions, uUniqueInstance, Clipbrd, ShellCtrls,
   uFileSourceOperationOptionsUI, uDebug, uHotkeyManager, uFileSourceUtil, uTempFileSystemFileSource,
   Laz2_XMLRead, DCOSUtils, DCStrUtils, fOptions, fOptionsFrame, fOptionsToolbar, uClassesEx,
@@ -4941,7 +4944,9 @@ var
   AFileView: TFileView;
 begin
   AFileView:= ActiveFrame;
-  if AFileView is TColumnsFileView then
+  if AFileView is TTreeFileView then
+    actTreeFileView.Checked:= True
+  else if AFileView is TColumnsFileView then
     actColumnsView.Checked:= True
   else if AFileView is TBriefFileView then
     actBriefView.Checked:= True
@@ -5214,6 +5219,8 @@ begin
     Result := TBriefFileView.Create(Page, AConfig, ANode, FileViewFlags);
   end else if sType = 'thumbnails' then
     Result := TThumbFileView.Create(Page, AConfig, ANode, FileViewFlags)
+  else if sType = 'tree' then
+    Result := TTreeFileView.Create(Page, AConfig, ANode, FileViewFlags)
   else begin
     DCDebug(rsMsgLogError + 'Invalid file view type "%s"', [sType]);
     Result := TColumnsFileView.Create(Page, AConfig, ANode, FileViewFlags);

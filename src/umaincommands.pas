@@ -247,6 +247,7 @@ type
    procedure cm_ThumbnailsView(const Params: array of string);
    procedure cm_LeftThumbView(const Params: array of string);
    procedure cm_RightThumbView(const Params: array of string);
+   procedure cm_TreeFileView(const Params: array of string);
    procedure cm_TreeView(const Params: array of string);
    procedure cm_CopyNamesToClip(const {%H-}Params: array of string);
    procedure cm_FocusTreeView(const {%H-}Params: array of string);
@@ -409,6 +410,7 @@ uses fOptionsPluginsBase, fOptionsPluginsDSX, fOptionsPluginsWCX,
      uFileSourceOperationMessageBoxesUI, uFileSourceCalcChecksumOperation,
      uFileSourceCalcStatisticsOperation, uFileSource, uFileSourceProperty,
      uVfsFileSource, uFileSourceUtil, uArchiveFileSourceUtil, uThumbFileView,
+     uTreeFileView,
      uTempFileSystemFileSource, uFileProperty, uFileSourceSetFilePropertyOperation,
      uTrash, uFileSystemCopyOperation, fOptionsFileAssoc, fDeleteDlg,
      fViewOperations, uVfsModule, uMultiListFileSource, uExceptions, uFileProcs,
@@ -2390,6 +2392,18 @@ procedure TMainCommands.cm_RightThumbView(const Params: array of string);
 begin
   ToggleOrNotToOrFromThumbnailsView(frmMain.FrameRight, frmMain.RightTabs);
   frmMain.ActiveFrame.SetFocus;
+end;
+
+procedure TMainCommands.cm_TreeFileView(const Params: array of string);
+var
+  aFileView: TFileView;
+begin
+  with frmMain do
+  begin
+    aFileView:= TTreeFileView.Create(ActiveNotebook.ActivePage, ActiveFrame);
+    ActiveNotebook.ActivePage.FileView:= aFileView;
+    ActiveFrame.SetFocus;
+  end;
 end;
 
 procedure TMainCommands.cm_TreeView(const Params: array of string);
