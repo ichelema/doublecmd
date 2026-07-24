@@ -38,6 +38,7 @@ type
     procedure FileSourceFileListLoaded; override;
   public
     destructor Destroy; override;
+    function CloneSelectedFiles: TFiles; override;
     procedure ChangePathToChild(const aFile: TFile); override;
     function Clone(NewParent: TWinControl): TColumnsFileView; override;
     procedure CloneTo(FileView: TFileView); override;
@@ -416,6 +417,33 @@ begin
     end;
   end;
   inherited MainControlMouseDown(Sender, Button, Shift, X, Y);
+end;
+
+function TTreeFileView.CloneSelectedFiles: TFiles;
+var
+  I, J: Integer;
+  Prefix: String;
+  Covered: Boolean;
+begin
+  Result := inherited CloneSelectedFiles;
+  // Selecting a directory covers its whole subtree: drop selected
+  // descendants, otherwise they would be copied/deleted twice.
+  for I := Result.Count - 1 downto 0 do
+  begin
+    Covered := False;
+    for J := 0 to Result.Count - 1 do
+    begin
+      if (J = I) or (not Result[J].IsDirectory) then Continue;
+      Prefix := IncludeTrailingPathDelimiter(Result[J].FullPath);
+      if Copy(Result[I].Path, 1, Length(Prefix)) = Prefix then
+      begin
+        Covered := True;
+        Break;
+      end;
+    end;
+    if Covered then
+      Result.Delete(I);
+  end;
 end;
 
 procedure TTreeFileView.ChangePathToChild(const aFile: TFile);

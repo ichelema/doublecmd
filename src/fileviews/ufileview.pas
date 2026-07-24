@@ -421,7 +421,7 @@ type
        (this should be a subset of displayed files list returned by Files).
        Caller is responsible for freeing the list.
     }
-    function CloneSelectedFiles: TFiles;
+    function CloneSelectedFiles: TFiles; virtual;
     function CloneSelectedDirectories: TFiles;
     {en
        A list of files selected by the user
