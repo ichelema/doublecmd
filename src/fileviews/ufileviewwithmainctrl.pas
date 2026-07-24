@@ -630,7 +630,9 @@ begin
               end;
             end
             else
-              TargetPath := TargetPath + AFile.FSFile.Name + DirectorySeparator;
+              // Use the file own path: in tree view the directory under the
+              // cursor may be an expanded child living below CurrentPath.
+              TargetPath := IncludeTrailingPathDelimiter(AFile.FSFile.FullPath);
           end
           else if FileIsArchive(AFile.FSFile.FullPath) then
             try

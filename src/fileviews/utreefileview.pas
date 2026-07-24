@@ -25,9 +25,10 @@ type
     procedure ExpandDirectory(AFile: TDisplayFile);
     procedure CollapseDirectory(AFile: TDisplayFile);
     procedure ToggleExpanded(AFile: TDisplayFile);
-    procedure ReorderTree;
+    procedure ReorderTree(AList: TDisplayFiles);
   protected
     procedure SortAllDisplayFiles; override;
+    procedure DisplayFileListChanged; override;
     procedure DoHandleKeyDown(var Key: Word; Shift: TShiftState); override;
     function calcFileHashKey(const FileName, APath: String): String; override;
     procedure CreateDefault(AOwner: TWinControl); override;
@@ -46,7 +47,7 @@ type
 implementation
 
 uses
-  Math, LCLType, uGlobs, uFileSource, uFileSourceListOperation,
+  Math, LCLType, uGlobs, uFileSource, uFileSystemFileSource, uFileSourceListOperation,
   uFileSourceOperationTypes, uFileSourceOperation, uFileSourceProperty,
   uFileViewWorker, uFileSorting;
 
@@ -92,7 +93,8 @@ end;
 function TTreeFileView.IsExpandable(AFile: TDisplayFile): Boolean;
 begin
   Result := (AFile.FSFile.IsDirectory or AFile.FSFile.IsLinkToDirectory) and
-            (AFile.FSFile.Name <> '..');
+            (AFile.FSFile.Name <> '..') and
+            FileSource.IsClass(TFileSystemFileSource);  // real filesystem only for now
 end;
 
 function TTreeFileView.IsExpanded(AFile: TDisplayFile): Boolean;
@@ -209,7 +211,7 @@ begin
     ExpandDirectory(AFile);
 end;
 
-procedure TTreeFileView.ReorderTree;
+procedure TTreeFileView.ReorderTree(AList: TDisplayFiles);
 var
   Groups: TStringList;
   OutList: TFPList;
@@ -246,9 +248,9 @@ begin
     Groups.CaseSensitive := FileNameCaseSensitive;
 
     // Group files by parent directory, keeping the (sorted) relative order
-    for I := 0 to FAllDisplayFiles.Count - 1 do
+    for I := 0 to AList.Count - 1 do
     begin
-      DF := FAllDisplayFiles[I];
+      DF := AList[I];
       GI := Groups.IndexOf(DF.FSFile.Path);
       if GI < 0 then
       begin
@@ -272,9 +274,9 @@ begin
       G.Free;
     end;
 
-    FAllDisplayFiles.List.Clear;
+    AList.List.Clear;
     for I := 0 to OutList.Count - 1 do
-      FAllDisplayFiles.List.Add(OutList[I]);
+      AList.List.Add(OutList[I]);
   finally
     OutList.Free;
     Groups.Free;
@@ -283,8 +285,19 @@ end;
 
 procedure TTreeFileView.SortAllDisplayFiles;
 begin
-  inherited SortAllDisplayFiles;  // flat sort of the whole list
-  ReorderTree;                    // then children back under their parents
+  inherited SortAllDisplayFiles;   // flat sort of the whole list
+  ReorderTree(FAllDisplayFiles);   // then children back under their parents
+end;
+
+procedure TTreeFileView.DisplayFileListChanged;
+begin
+  // Files inserted by the watcher (or resorted) land in flat-sort positions:
+  // restore depth-first order before the grid is updated. Idempotent.
+  if Assigned(FAllDisplayFiles) then
+    ReorderTree(FAllDisplayFiles);
+  if Assigned(FFiles) then
+    ReorderTree(FFiles);
+  inherited DisplayFileListChanged;
 end;
 
 procedure TTreeFileView.DoHandleKeyDown(var Key: Word; Shift: TShiftState);
