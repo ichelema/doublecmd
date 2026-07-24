@@ -1,5 +1,11 @@
 # Piano: vista ad albero (Tree File View) nel pannello di Double Commander
 
+> **STATO: COMPLETATO** (24/07/2026, branch `treeview`). Tutte le fasi 0-5
+> implementate e testate. Extra rispetto al piano: fix navigazione in cartelle
+> espanse (ChangePathToChild), fix switch vista Tree→Colonne, dedup selezione
+> (CloneSelectedFiles), drop su cartella espansa, watch per-cartella con
+> aggiornamenti live e ri-espansione dopo i reload.
+
 Obiettivo: aggiungere un **quarto tipo di vista** del pannello file (accanto a Colonne,
 Breve, Miniature) con **cartelle espandibili inline** stile file manager GTK
 (Nemo/Nautilus "vista elenco"): triangolo expander, figli indentati sotto il padre,
