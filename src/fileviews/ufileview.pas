@@ -326,7 +326,7 @@ type
     function IsItemValid(AFile: TDisplayFile): Boolean;
 
     procedure SetSorting(const NewSortings: TFileSortings); virtual;
-    procedure SortAllDisplayFiles;
+    procedure SortAllDisplayFiles; virtual;
 
     {en
        Retrieves file list from file source into FAllDisplayFiles.

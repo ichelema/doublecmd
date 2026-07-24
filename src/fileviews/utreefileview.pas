@@ -25,7 +25,10 @@ type
     procedure ExpandDirectory(AFile: TDisplayFile);
     procedure CollapseDirectory(AFile: TDisplayFile);
     procedure ToggleExpanded(AFile: TDisplayFile);
+    procedure ReorderTree;
   protected
+    procedure SortAllDisplayFiles; override;
+    procedure DoHandleKeyDown(var Key: Word; Shift: TShiftState); override;
     function calcFileHashKey(const FileName, APath: String): String; override;
     procedure CreateDefault(AOwner: TWinControl); override;
     procedure DecorateIconCell(ACanvas: TCanvas; AFile: TDisplayFile; var CellRect: TRect); override;
@@ -43,7 +46,7 @@ type
 implementation
 
 uses
-  Math, uGlobs, uFileSource, uFileSourceListOperation,
+  Math, LCLType, uGlobs, uFileSource, uFileSourceListOperation,
   uFileSourceOperationTypes, uFileSourceOperation, uFileSourceProperty,
   uFileViewWorker, uFileSorting;
 
@@ -204,6 +207,138 @@ begin
     CollapseDirectory(AFile)
   else
     ExpandDirectory(AFile);
+end;
+
+procedure TTreeFileView.ReorderTree;
+var
+  Groups: TStringList;
+  OutList: TFPList;
+  I, J, GI: Integer;
+  DF: TDisplayFile;
+  G: TFPList;
+
+  procedure Emit(const APath: String);
+  var
+    K, EI: Integer;
+    L: TFPList;
+    F: TDisplayFile;
+  begin
+    EI := Groups.IndexOf(APath);
+    if EI < 0 then Exit;
+    L := TFPList(Groups.Objects[EI]);
+    Groups.Delete(EI);  // also guards against symlink cycles
+    for K := 0 to L.Count - 1 do
+    begin
+      F := TDisplayFile(L[K]);
+      OutList.Add(F);
+      if IsExpandable(F) and (FExpandedPaths.IndexOf(F.FSFile.FullPath) >= 0) then
+        Emit(IncludeTrailingPathDelimiter(F.FSFile.FullPath));
+    end;
+    L.Free;
+  end;
+
+begin
+  if (FExpandedPaths = nil) or (FExpandedPaths.Count = 0) then Exit;
+
+  Groups := TStringList.Create;
+  OutList := TFPList.Create;
+  try
+    Groups.CaseSensitive := FileNameCaseSensitive;
+
+    // Group files by parent directory, keeping the (sorted) relative order
+    for I := 0 to FAllDisplayFiles.Count - 1 do
+    begin
+      DF := FAllDisplayFiles[I];
+      GI := Groups.IndexOf(DF.FSFile.Path);
+      if GI < 0 then
+      begin
+        G := TFPList.Create;
+        Groups.AddObject(DF.FSFile.Path, TObject(G));
+      end
+      else
+        G := TFPList(Groups.Objects[GI]);
+      G.Add(DF);
+    end;
+
+    // Depth-first: siblings in sorted order, children right after their parent
+    Emit(CurrentPath);
+
+    // Safety net: keep any unreachable leftovers at the end
+    for I := 0 to Groups.Count - 1 do
+    begin
+      G := TFPList(Groups.Objects[I]);
+      for J := 0 to G.Count - 1 do
+        OutList.Add(G[J]);
+      G.Free;
+    end;
+
+    FAllDisplayFiles.List.Clear;
+    for I := 0 to OutList.Count - 1 do
+      FAllDisplayFiles.List.Add(OutList[I]);
+  finally
+    OutList.Free;
+    Groups.Free;
+  end;
+end;
+
+procedure TTreeFileView.SortAllDisplayFiles;
+begin
+  inherited SortAllDisplayFiles;  // flat sort of the whole list
+  ReorderTree;                    // then children back under their parents
+end;
+
+procedure TTreeFileView.DoHandleKeyDown(var Key: Word; Shift: TShiftState);
+var
+  AFile: TDisplayFile;
+  Idx: PtrInt;
+  Level, I: Integer;
+begin
+  case Key of
+    VK_RIGHT:
+      if Shift = [] then
+      begin
+        Idx := GetActiveFileIndex;
+        if IsFileIndexInRange(Idx) then
+        begin
+          AFile := FFiles[Idx];
+          if IsExpandable(AFile) then
+          begin
+            if not IsExpanded(AFile) then
+              ExpandDirectory(AFile)
+            else if (Idx + 1 < FFiles.Count) and (FileLevel(FFiles[Idx + 1]) > FileLevel(AFile)) then
+              SetActiveFile(Idx + 1, True);
+          end;
+        end;
+        Key := 0;
+        Exit;
+      end;
+
+    VK_LEFT:
+      if Shift = [] then
+      begin
+        Idx := GetActiveFileIndex;
+        if IsFileIndexInRange(Idx) then
+        begin
+          AFile := FFiles[Idx];
+          if IsExpandable(AFile) and IsExpanded(AFile) then
+            CollapseDirectory(AFile)
+          else
+          begin
+            Level := FileLevel(AFile);
+            if Level > 0 then
+              for I := Idx - 1 downto 0 do
+                if FileLevel(FFiles[I]) < Level then
+                begin
+                  SetActiveFile(I, True);
+                  Break;
+                end;
+          end;
+        end;
+        Key := 0;
+        Exit;
+      end;
+  end;
+  inherited DoHandleKeyDown(Key, Shift);
 end;
 
 procedure TTreeFileView.DecorateIconCell(ACanvas: TCanvas; AFile: TDisplayFile; var CellRect: TRect);
