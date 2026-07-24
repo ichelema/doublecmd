@@ -112,8 +112,6 @@ type
     FFilePropertiesNeeded: TFilePropertiesTypes;
     FFileViewWorkers: TFileViewWorkers;
     FFlags: TFileViewFlags;
-    FHashedFiles: TBucketList;  //<en Contains pointers to file source files for quick checking if a file object is still valid
-    FHashedNames: TStringHashListUtf8;
     FPendingFilesChanges: TFPList;
     FPendingFilesTimer: TTimer;
     FReloadNeeded: Boolean;     //<en If file list should be reloaded
@@ -123,7 +121,6 @@ type
     FLoadFilesFinishTime: TDateTime;
     FLoadFilesNoDelayCount: Integer; //<en How many reloads have been accepted without delay
     FNotifications: TFileViewNotifications;
-    FRecentlyUpdatedFiles: TDisplayFiles;    //<en Recently updated files.
     FRecentlyUpdatedFilesTimer: TTimer;
     FRequests: TFileViewRequests;
     FUpdateCount: Integer;           //<en Nr of times BeginUpdate was called without corresponding EndUpdate
@@ -155,12 +152,6 @@ type
     FOnActivate : TOnActivate;
     FOnFileListChanged : TOnFileListChanged;
     FLoadingFileListLongTimer: TTimer;
-
-    // when not in FlatView Mode, FileName only used as Key for FHashedNames
-    // to save resource;
-    // otherwise, subPath+FileName should be used as Key
-    // to identify files with the same name in different subdirectories
-    function calcFileHashKey(const FileName, APath: String): String;
 
     procedure AddFile(const FileName, APath: String; NewFilesPosition: TNewFilesPosition; UpdatedFilesPosition: TUpdatedFilesPosition);
     procedure AddEventToPendingFilesChanges(const EventData: TFSWatcherEventData);
@@ -234,6 +225,15 @@ type
     FFiles: TDisplayFiles;              //<en List of displayed files (filtered)
     FSavedSelection: TStringListEx;
     FSortingProperties: TFilePropertiesTypes;
+    FHashedFiles: TBucketList;  //<en Contains pointers to file source files for quick checking if a file object is still valid
+    FHashedNames: TStringHashListUtf8;
+    FRecentlyUpdatedFiles: TDisplayFiles;    //<en Recently updated files.
+
+    // when not in FlatView Mode, FileName only used as Key for FHashedNames
+    // to save resource;
+    // otherwise, subPath+FileName should be used as Key
+    // to identify files with the same name in different subdirectories
+    function calcFileHashKey(const FileName, APath: String): String; virtual;
 
     procedure EnableWatcher(Enable: Boolean);
     {en

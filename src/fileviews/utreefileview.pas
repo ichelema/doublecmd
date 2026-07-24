@@ -14,19 +14,24 @@ type
   { TTreeFileView }
 
   { Columns view with expandable directories.
-    Phase 1: expander triangles and click hit-test; children not listed yet. }
+    Phase 2: expanding lists children indented below their parent. }
   TTreeFileView = class(TColumnsFileView)
   private
     FExpandedPaths: TStringList;
     function ExpanderWidth: Integer;
+    function FileLevel(AFile: TDisplayFile): Integer;
     function IsExpandable(AFile: TDisplayFile): Boolean;
     function IsExpanded(AFile: TDisplayFile): Boolean;
+    procedure ExpandDirectory(AFile: TDisplayFile);
+    procedure CollapseDirectory(AFile: TDisplayFile);
     procedure ToggleExpanded(AFile: TDisplayFile);
   protected
+    function calcFileHashKey(const FileName, APath: String): String; override;
     procedure CreateDefault(AOwner: TWinControl); override;
     procedure DecorateIconCell(ACanvas: TCanvas; AFile: TDisplayFile; var CellRect: TRect); override;
     procedure MainControlMouseDown(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Integer); override;
     procedure AfterChangePath; override;
+    procedure FileSourceFileListLoaded; override;
   public
     destructor Destroy; override;
     function Clone(NewParent: TWinControl): TColumnsFileView; override;
@@ -37,7 +42,9 @@ type
 implementation
 
 uses
-  Math, uGlobs;
+  Math, uGlobs, uFile, uFileSource, uFileSourceListOperation,
+  uFileSourceOperationTypes, uFileSourceOperation,
+  uFileViewWorker, uFileSorting;
 
 { TTreeFileView }
 
@@ -54,9 +61,28 @@ begin
   FreeAndNil(FExpandedPaths);
 end;
 
+function TTreeFileView.calcFileHashKey(const FileName, APath: String): String;
+begin
+  // Always path-qualified: the tree shows files with the same name
+  // from different directories at the same time.
+  Result := ExcludeTrailingPathDelimiter(IncludeTrailingPathDelimiter(APath) + FileName);
+end;
+
 function TTreeFileView.ExpanderWidth: Integer;
 begin
   Result := Max(gIconsSize, 12);
+end;
+
+function TTreeFileView.FileLevel(AFile: TDisplayFile): Integer;
+var
+  APath: String;
+  I: Integer;
+begin
+  Result := 0;
+  APath := AFile.FSFile.Path;  // ends with a path delimiter
+  for I := Length(CurrentPath) + 1 to Length(APath) do
+    if APath[I] = PathDelim then
+      Inc(Result);
 end;
 
 function TTreeFileView.IsExpandable(AFile: TDisplayFile): Boolean;
@@ -71,17 +97,112 @@ begin
             (FExpandedPaths.IndexOf(AFile.FSFile.FullPath) >= 0);
 end;
 
-procedure TTreeFileView.ToggleExpanded(AFile: TDisplayFile);
+procedure TTreeFileView.ExpandDirectory(AFile: TDisplayFile);
 var
-  Index: Integer;
+  ChildrenPath: String;
+  ListOp: TFileSourceListOperation;
+  AFiles: TFiles;
+  NewFiles: TDisplayFiles;
+  DF: TDisplayFile;
+  I, InsAll, InsVis: Integer;
+begin
+  if IsExpanded(AFile) then Exit;
+  if not (fsoList in FileSource.GetOperationsTypes) then Exit;
+  ChildrenPath := IncludeTrailingPathDelimiter(AFile.FSFile.FullPath);
+
+  AFiles := nil;
+  try
+    ListOp := FileSource.CreateListOperation(ChildrenPath) as TFileSourceListOperation;
+    if not Assigned(ListOp) then Exit;
+    try
+      ListOp.Execute;
+      if ListOp.Result = fsorFinished then
+        AFiles := ListOp.ReleaseFiles;
+    finally
+      ListOp.Free;
+    end;
+  except
+    // No permission or vanished directory: leave collapsed, no crash
+    FreeAndNil(AFiles);
+  end;
+  if AFiles = nil then Exit;
+
+  NewFiles := TDisplayFiles.Create(False);
+  try
+    for I := 0 to AFiles.Count - 1 do
+    begin
+      if (AFiles[I].Name = '..') or (AFiles[I].Name = '.') then Continue;
+      if FHashedNames.Find(calcFileHashKey(AFiles[I].Name, AFiles[I].Path)) >= 0 then Continue;
+      DF := TDisplayFile.Create(AFiles[I].Clone);
+      DF.DisplayName := FileSource.GetDisplayFileName(DF.FSFile);
+      NewFiles.Add(DF);
+    end;
+    TDisplayFileSorter.Sort(NewFiles, SortingForSorter);
+
+    InsAll := FAllDisplayFiles.Find(AFile) + 1;
+    if InsAll = 0 then InsAll := FAllDisplayFiles.Count;
+    InsVis := FFiles.Find(AFile) + 1;  // 0 = parent filtered out
+
+    for I := 0 to NewFiles.Count - 1 do
+    begin
+      DF := NewFiles[I];
+      FHashedFiles.Add(DF, nil);
+      FHashedNames.Add(calcFileHashKey(DF.FSFile.Name, DF.FSFile.Path), DF);
+      FAllDisplayFiles.List.Insert(InsAll, DF);
+      Inc(InsAll);
+      if (InsVis > 0) and
+         (not TFileListBuilder.MatchesFilter(FileSource, DF.FSFile, FileFilter, FilterOptions)) then
+      begin
+        FFiles.List.Insert(InsVis, DF);
+        Inc(InsVis);
+      end;
+    end;
+    FExpandedPaths.Add(AFile.FSFile.FullPath);
+  finally
+    NewFiles.Free;  // does not own the display files
+    AFiles.Free;    // frees the listed files; we inserted clones
+  end;
+  Notify([fvnFileSourceFileListUpdated, fvnDisplayFileListChanged]);
+end;
+
+procedure TTreeFileView.CollapseDirectory(AFile: TDisplayFile);
+var
+  Prefix: String;
+  I: Integer;
+  DF: TDisplayFile;
+begin
+  Prefix := IncludeTrailingPathDelimiter(AFile.FSFile.FullPath);
+
+  // Forget expansion state of this directory and everything below it
+  for I := FExpandedPaths.Count - 1 downto 0 do
+    if (FExpandedPaths[I] = AFile.FSFile.FullPath) or
+       (Copy(FExpandedPaths[I], 1, Length(Prefix)) = Prefix) then
+      FExpandedPaths.Delete(I);
+
+  // Drop every display file living under this directory
+  for I := FAllDisplayFiles.Count - 1 downto 0 do
+  begin
+    DF := FAllDisplayFiles[I];
+    if Copy(DF.FSFile.Path, 1, Length(Prefix)) = Prefix then
+    begin
+      FHashedNames.Remove(calcFileHashKey(DF.FSFile.Name, DF.FSFile.Path));
+      FHashedFiles.Remove(DF);
+      FFiles.Remove(DF);
+      if Assigned(FRecentlyUpdatedFiles) then
+        FRecentlyUpdatedFiles.Remove(DF);
+      FAllDisplayFiles.Delete(I);  // owner: frees the display file
+    end;
+  end;
+  Notify([fvnFileSourceFileListUpdated, fvnDisplayFileListChanged]);
+end;
+
+procedure TTreeFileView.ToggleExpanded(AFile: TDisplayFile);
 begin
   if not Assigned(FExpandedPaths) then Exit;
-  Index := FExpandedPaths.IndexOf(AFile.FSFile.FullPath);
-  if Index >= 0 then
-    FExpandedPaths.Delete(Index)
+  if IsExpanded(AFile) then
+    CollapseDirectory(AFile)
   else
-    FExpandedPaths.Add(AFile.FSFile.FullPath);
-  dgPanel.Invalidate;
+    ExpandDirectory(AFile);
 end;
 
 procedure TTreeFileView.DecorateIconCell(ACanvas: TCanvas; AFile: TDisplayFile; var CellRect: TRect);
@@ -89,6 +210,9 @@ var
   cx, cy, h: Integer;
   P: array[0..2] of TPoint;
 begin
+  // Indent by nesting level
+  Inc(CellRect.Left, ExpanderWidth * FileLevel(AFile));
+
   if IsExpandable(AFile) then
   begin
     cx := CellRect.Left + ExpanderWidth div 2;
@@ -123,7 +247,7 @@ end;
 procedure TTreeFileView.MainControlMouseDown(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
 var
   ACol, ARow: Integer;
-  Idx: Integer;
+  Idx, StripLeft: Integer;
   R: TRect;
 begin
   if Button = mbLeft then
@@ -133,7 +257,8 @@ begin
     if IsFileIndexInRange(Idx) then
     begin
       R := dgPanel.CellRect(0, ARow);
-      if (X >= R.Left) and (X < R.Left + ExpanderWidth) and IsExpandable(FFiles[Idx]) then
+      StripLeft := R.Left + ExpanderWidth * FileLevel(FFiles[Idx]);
+      if (X >= StripLeft) and (X < StripLeft + ExpanderWidth) and IsExpandable(FFiles[Idx]) then
       begin
         if not (ssDouble in Shift) then
           ToggleExpanded(FFiles[Idx]);
@@ -147,6 +272,14 @@ end;
 procedure TTreeFileView.AfterChangePath;
 begin
   inherited AfterChangePath;
+  if Assigned(FExpandedPaths) then
+    FExpandedPaths.Clear;
+end;
+
+procedure TTreeFileView.FileSourceFileListLoaded;
+begin
+  inherited FileSourceFileListLoaded;
+  // A fresh list from the worker has no expanded children (phase 5: re-apply)
   if Assigned(FExpandedPaths) then
     FExpandedPaths.Clear;
 end;
