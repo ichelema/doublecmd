@@ -658,6 +658,7 @@ type
     procedure frmMainAfterShow(Sender: TObject);
     procedure frmMainShow(Sender: TObject);
     procedure mnuDropClick(Sender: TObject);
+    procedure mnuDropOperationAsync(Data: PtrInt);
     procedure mnuSplitterPercentClick(Sender: TObject);
     procedure mnuTabMenuExecute(Sender: TObject);
     procedure mnuTabMenuClick(Sender: TObject);
@@ -738,6 +739,10 @@ type
        Used to pass drag&drop parameters to pmDropMenu. Single variable
        can be used, because the user can do only one menu popup at a time. }
     FDropParams: TDropParams;
+    {en
+       Drag&drop parameters owned by the asynchronous call that executes
+       the operation chosen in pmDropMenu. }
+    FDropMenuParams: TDropParams;
     FDrivesListPopup: TDrivesListPopup;
     FOperationsPanel: TOperationsPanel;
     FSyncChangeParent: Boolean;
@@ -935,6 +940,10 @@ type
        into TDragDropOperation operations.
        Handles freeing DropParams. }
     procedure DropFiles(var DropParams: TDropParams);
+
+    {en
+       Executes the drop, taking ownership of the TDropParams given in Data. }
+    procedure DropFilesAsync(Data: PtrInt);
 
     {en
        Performs all drag&drop actions.
@@ -1976,34 +1985,52 @@ procedure TfrmMain.DropFiles(var DropParams: TDropParams);
 begin
   if Assigned(DropParams) then
   begin
-    if DropParams.Files.Count > 0 then
-    begin
-      case DropParams.DropEffect of
-
-        DropMoveEffect:
-          DropParams.TargetPanel.DoDragDropOperation(ddoMove, DropParams);
-
-        DropCopyEffect:
-          DropParams.TargetPanel.DoDragDropOperation(ddoCopy, DropParams);
-
-        DropLinkEffect:
-          DropParams.TargetPanel.DoDragDropOperation(ddoSymLink, DropParams);
-
-        DropAskEffect:
-          begin
-            // Ask the user what he would like to do by displaying a menu.
-            // Returns immediately after showing menu.
-            PopupDragDropMenu(DropParams);
-          end;
-
-        else
-          FreeAndNil(DropParams);
-
-      end;
-    end
-    else
-      FreeAndNil(DropParams);
+{$IF DEFINED(UNIX) and not DEFINED(DARWIN)}
+    // This is called from the drag&drop event handler, while the drag is still
+    // holding an input grab. Under Wayland a modal dialog shown by the
+    // operation would not receive any input, so run it after the drag has
+    // finished. The parameters are owned by the asynchronous call now.
+    Application.QueueAsyncCall(@DropFilesAsync, PtrInt(DropParams));
+{$ELSE}
+    DropFilesAsync(PtrInt(DropParams));
+{$ENDIF}
+    DropParams := nil;
   end;
+end;
+
+procedure TfrmMain.DropFilesAsync(Data: PtrInt);
+var
+  DropParams: TDropParams;
+begin
+  DropParams := TDropParams(Data);
+
+  if DropParams.Files.Count > 0 then
+  begin
+    case DropParams.DropEffect of
+
+      DropMoveEffect:
+        DropParams.TargetPanel.DoDragDropOperation(ddoMove, DropParams);
+
+      DropCopyEffect:
+        DropParams.TargetPanel.DoDragDropOperation(ddoCopy, DropParams);
+
+      DropLinkEffect:
+        DropParams.TargetPanel.DoDragDropOperation(ddoSymLink, DropParams);
+
+      DropAskEffect:
+        begin
+          // Ask the user what he would like to do by displaying a menu.
+          // Returns immediately after showing menu.
+          PopupDragDropMenu(DropParams);
+        end;
+
+      else
+        FreeAndNil(DropParams);
+
+    end;
+  end
+  else
+    FreeAndNil(DropParams);
 end;
 
 procedure TfrmMain.DoDragDropOperation(Operation: TDragDropOperation;
@@ -2535,39 +2562,42 @@ end;
 
 procedure TfrmMain.mnuDropClick(Sender: TObject);
 var
-  DropParamsRef: TDropParams;
+  Operation: TDragDropOperation;
 begin
   if (Sender is TMenuItem) and Assigned(FDropParams) then
     begin
-      // Make a copy of the reference to parameters and clear FDropParams,
-      // so that they're not destroyed if pmDropMenuClose is called while we're processing.
-      DropParamsRef := FDropParams;
+      if (Sender as TMenuItem).Name = 'miMove' then
+        Operation := ddoMove
+      else if (Sender as TMenuItem).Name = 'miCopy' then
+        Operation := ddoCopy
+      else if (Sender as TMenuItem).Name = 'miSymLink' then
+        Operation := ddoSymLink
+      else if (Sender as TMenuItem).Name = 'miHardLink' then
+        Operation := ddoHardLink
+      else
+        Exit; // miCancel, parameters are freed in pmDropMenuClose
+
+      // Move the reference out of FDropParams, so that they're not destroyed
+      // by pmDropMenuClose before the asynchronous call runs.
+      FDropMenuParams := FDropParams;
       FDropParams := nil; // release ownership
 
-      with DropParamsRef do
-      begin
-        if (Sender as TMenuItem).Name = 'miMove' then
-          begin
-            TargetPanel.DoDragDropOperation(ddoMove, DropParamsRef);
-          end
-        else if (Sender as TMenuItem).Name = 'miCopy' then
-          begin
-            TargetPanel.DoDragDropOperation(ddoCopy, DropParamsRef);
-          end
-        else if (Sender as TMenuItem).Name = 'miSymLink' then
-          begin
-            TargetPanel.DoDragDropOperation(ddoSymLink, DropParamsRef);
-          end
-        else if (Sender as TMenuItem).Name = 'miHardLink' then
-          begin
-            TargetPanel.DoDragDropOperation(ddoHardLink, DropParamsRef);
-          end
-        else if (Sender as TMenuItem).Name = 'miCancel' then
-          begin
-            FreeAndNil(DropParamsRef);
-          end;
-      end; //with
+      // Run the operation after the menu has finished closing. The dialog
+      // shown by the operation is modal and under Wayland it would not get
+      // any input while the popup menu still holds the input grab.
+      Application.QueueAsyncCall(@mnuDropOperationAsync, PtrInt(Operation));
     end;
+end;
+
+procedure TfrmMain.mnuDropOperationAsync(Data: PtrInt);
+var
+  DropParamsRef: TDropParams;
+begin
+  DropParamsRef := FDropMenuParams;
+  FDropMenuParams := nil;
+
+  if Assigned(DropParamsRef) then
+    DropParamsRef.TargetPanel.DoDragDropOperation(TDragDropOperation(Data), DropParamsRef);
 end;
 
 procedure TfrmMain.PopupDragDropMenu(var DropParams: TDropParams);
