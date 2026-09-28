@@ -50,9 +50,6 @@ type
     procedure mount( const path: String );
     function getDefaultPointForPath( const path: String ): String; virtual;
     function getMountPointFromPath(const realPath: String): TMountPoint;
-  protected
-    function SetCurrentWorkingDirectory(NewDir: String): Boolean; override;
-    function GetCurrentWorkingDirectory: String; override;
   public
     function GetProcessor: TFileSourceProcessor; override;
     function GetRealPath(const APath: String): String; override;
@@ -167,16 +164,6 @@ begin
   end;
 end;
 
-function TMountedFileSource.SetCurrentWorkingDirectory(NewDir: String): Boolean;
-begin
-  Result:= True;
-end;
-
-function TMountedFileSource.GetCurrentWorkingDirectory: String;
-begin
-  Result:= '';
-end;
-
 function TMountedFileSource.GetProcessor: TFileSourceProcessor;
 begin
   Result:= mountedFileSourceProcessor;
@@ -188,8 +175,13 @@ var
   logicPath: String;
 begin
   Result:= EmptyStr;
-  logicPath:= APath.Substring( self.GetRootDir.Length - 1 );
+  if IsPathAtRoot(APath) then
+    logicPath:= PathDelim
+  else
+    logicPath:= APath.Substring( self.GetRootDir.Length - 1 );
   for mountPoint in _mountPoints do begin
+    if IncludeTrailingPathDelimiter(logicPath) = mountPoint.point then
+      Exit(mountPoint.path);
     if logicPath.StartsWith(mountPoint.point) then begin
       Result:= mountPoint.path + logicPath.Substring(mountPoint.point.Length);
       Exit;
@@ -297,6 +289,8 @@ begin
     Exit;
   if NOT params.partnerFS.IsClass(TWcxArchiveFileSource) then
     Exit;
+  if params.files = nil then
+    Exit;
 
   mountedFS:= params.currentFS as TMountedFileSource;
   realPath:= params.files[0].FullPath;
@@ -313,7 +307,7 @@ begin
   if params.phase<>TFileSourceConsultPhase.source then
     Exit;
 
-  if params.files.allFilesAtSamePath then
+  if (params.files=nil) or (params.files.allFilesAtSamePath) then
     Exit;
 
   MessageDlg(

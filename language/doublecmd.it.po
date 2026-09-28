@@ -2916,6 +2916,15 @@ msgstr "Anteprime"
 msgid "Thumbnails View"
 msgstr "Visualizza anteprime"
 
+#: tfrmmain.acttreefileview.caption
+msgctxt "tfrmmain.acttreefileview.caption"
+msgid "Tree"
+msgstr "Albero"
+
+#: tfrmmain.acttreefileview.hint
+msgid "Tree View"
+msgstr "Vista ad albero"
+
 #: tfrmmain.acttogglefullscreenconsole.caption
 msgid "Toggle fullscreen mode console"
 msgstr "Alterna la modalità a schermo intero della console"

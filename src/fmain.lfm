@@ -1370,6 +1370,9 @@ object frmMain: TfrmMain
       object mnuThumbnailsView: TMenuItem
         Action = actThumbnailsView
       end
+      object mnuTreeFileView: TMenuItem
+        Action = actTreeFileView
+      end
       object miLine33: TMenuItem
         Caption = '-'
       end
@@ -2276,6 +2279,15 @@ object frmMain: TfrmMain
       Caption = 'Thumbnails'
       GroupIndex = 6
       Hint = 'Thumbnails View'
+      OnExecute = actExecute
+    end
+    object actTreeFileView: TAction
+      Tag = 1
+      Category = 'Active Panel'
+      AutoCheck = True
+      Caption = 'Tree'
+      GroupIndex = 6
+      Hint = 'Tree View'
       OnExecute = actExecute
     end
     object actFlatView: TAction

@@ -50,7 +50,7 @@ type
     function FindObject(AParent: IShellFolder2; const AName: String; out AValue: PItemIDList): HRESULT;
 
     function CreateDirectory(const Path: String): Boolean; override;
-    function FileSystemEntryExists(const Path: String): Boolean; override;
+    function FileSystemEntryExists(const Path: String; const Options: TFileSourceExistsOptions): TFileSourceExistsResult; override;
 
     function GetOperationsTypes: TFileSourceOperationTypes; override;
     function GetSupportedFileProperties: TFilePropertiesTypes; override;
@@ -79,7 +79,7 @@ type
 implementation
 
 uses
-  ActiveX, ComObj,DCConvertEncoding,  uShellFolder, uShellListOperation,
+  ActiveX, ShellApi, ComObj,DCConvertEncoding,  uShellFolder, uShellListOperation,
   uShellCopyOperation, uShellFileOperation, uShellCreateDirectoryOperation,
   uShellExecuteOperation, uShellSetFilePropertyOperation, uShellFileSourceUtil,
   uShellDeleteOperation, uShellMoveOperation, UShellCalcStatisticsOperation,
@@ -360,12 +360,38 @@ begin
   end;
 end;
 
-function TShellFileSource.FileSystemEntryExists(const Path: String): Boolean;
+function TShellFileSource.FileSystemEntryExists(
+  const Path: String;
+  const Options: TFileSourceExistsOptions): TFileSourceExistsResult;
 var
   AObject: PItemIDList;
+  exists: Boolean;
+  Attributes: TSHFileInfoW;
 begin
-  Result:= Succeeded(FindObject(Path, AObject));
-  if Result then CoTaskMemFree(AObject);
+  Result:= TFileSourceExistsResult.notExist;
+  if Options = [] then
+    Exit;
+
+  exists:= Succeeded(FindObject(Path, AObject));
+  if exists then
+  try
+    if (Options = [TFileSourceExistsOption.needFile]) or
+       (Options = [TFileSourceExistsOption.needDir]) then
+    begin
+      if SHGetFileInfoW(PWideChar(AObject), 0, Attributes, SizeOf(Attributes),
+                        SHGFI_PIDL or SHGFI_ATTRIBUTES) = 0 then
+        exists:= False
+      else if TFileSourceExistsOption.needFile in Options then
+        exists:= (Attributes.dwAttributes and SFGAO_FOLDER) = 0
+      else
+        exists:= (Attributes.dwAttributes and SFGAO_FOLDER) <> 0;
+    end;
+  finally
+    CoTaskMemFree(AObject);
+  end;
+
+  if exists then
+    Result:= TFileSourceExistsResult.exists;
 end;
 
 function TShellFileSource.GetOperationsTypes: TFileSourceOperationTypes;
@@ -394,7 +420,7 @@ end;
 
 function TShellFileSource.GetProperties: TFileSourceProperties;
 begin
-  Result := [fspVirtual];
+  Result := [fspVirtual, fspSynchronizable];
 end;
 
 function TShellFileSource.CreateListOperation(TargetPath: String): TFileSourceOperation;

@@ -22,6 +22,12 @@ type
   TFileSourceConsultResult = ( fscrSuccess, fscrNotImplemented, fscrNotSupported, fscrCancel );
 
   {$scopedEnums on}
+  TFileSourceExistsOption = (needFile, needDir);
+  TFileSourceExistsOptions = set of TFileSourceExistsOption;
+  TFileSourceExistsResult = (exists, notExist, notSupported);
+  {$scopedEnums off}
+
+  {$scopedEnums on}
   TFileSourceConsultPhase = ( source, target );
 
   TFileSourceConsultParams = Record
@@ -199,7 +205,7 @@ type
     procedure AddSearchPath( const startPath: String; paths: TStringList );
 
     function CreateDirectory(const Path: String): Boolean;
-    function FileSystemEntryExists(const Path: String): Boolean;
+    function FileSystemEntryExists(const Path: String; const Options: TFileSourceExistsOptions): TFileSourceExistsResult;
     function GetDefaultView(out DefaultView: TFileSourceFields): Boolean;
     function QueryContextMenu(AFiles: TFiles; var AMenu: TPopupMenu): Boolean;
 
@@ -405,7 +411,7 @@ type
     function GetFileSystem: String; virtual;
 
     function CreateDirectory(const Path: String): Boolean; virtual;
-    function FileSystemEntryExists(const Path: String): Boolean; virtual;
+    function FileSystemEntryExists(const Path: String; const Options: TFileSourceExistsOptions): TFileSourceExistsResult; virtual;
 
     function GetCustomIcon(aFile: TFile; AIconSize: Integer; out AIcon: TBitmap): PtrInt; virtual; overload;
     function GetCustomIcon(const path: String; const iconSize: Integer): TBitmap; virtual; overload;
@@ -734,9 +740,11 @@ begin
   Result := False;
 end;
 
-function TFileSource.FileSystemEntryExists(const Path: String): Boolean;
+function TFileSource.FileSystemEntryExists(
+  const Path: String;
+  const Options: TFileSourceExistsOptions): TFileSourceExistsResult;
 begin
-  Result := True;
+  Result := TFileSourceExistsResult.notSupported;
 end;
 
 function TFileSource.GetCustomIcon(aFile: TFile; AIconSize: Integer; out
@@ -882,7 +890,7 @@ end;
 
 function TFileSource.CreateFileObject(const APath: String): TFile;
 begin
-  Result := CreateFile(APath);
+  Result := CreateFile(GetRealPath(APath));
 end;
 
 procedure TFileSource.RetrieveProperties(AFile: TFile; PropertiesToSet: TFilePropertiesTypes; const AVariantProperties: array of String);

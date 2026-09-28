@@ -28,7 +28,7 @@ object frmOptions: TfrmOptions
     RowSelect = True
     ScrollBars = ssAutoBoth
     TabOrder = 0
-    Options = [tvoAutoExpand, tvoAutoItemHeight, tvoHideSelection, tvoKeepCollapsedNodes, tvoReadOnly, tvoRowSelect, tvoShowButtons, tvoShowLines, tvoShowRoot, tvoToolTips]
+    Options = [tvoAutoExpand, tvoAutoItemHeight, tvoHideSelection, tvoKeepCollapsedNodes, tvoReadOnly, tvoRowSelect, tvoShowButtons, tvoShowLines, tvoShowRoot]
     OnChange = tvTreeViewChange
   end
   object Panel3: TPanel

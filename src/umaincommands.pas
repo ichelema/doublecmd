@@ -247,6 +247,7 @@ type
    procedure cm_ThumbnailsView(const Params: array of string);
    procedure cm_LeftThumbView(const Params: array of string);
    procedure cm_RightThumbView(const Params: array of string);
+   procedure cm_TreeFileView(const Params: array of string);
    procedure cm_TreeView(const Params: array of string);
    procedure cm_CopyNamesToClip(const {%H-}Params: array of string);
    procedure cm_FocusTreeView(const {%H-}Params: array of string);
@@ -407,6 +408,7 @@ uses fOptionsPluginsBase, fOptionsPluginsDSX, fOptionsPluginsWCX,
      uFileSourceOperationMessageBoxesUI, uFileSourceCalcChecksumOperation,
      uFileSourceCalcStatisticsOperation, uFileSource, uFileSourceProperty,
      uVfsFileSource, uFileSourceUtil, uArchiveFileSourceUtil, uThumbFileView,
+     uTreeFileView,
      uTempFileSystemFileSource, uFileProperty, uFileSourceSetFilePropertyOperation,
      uTrash, uFileSystemCopyOperation, fOptionsFileAssoc, fDeleteDlg,
      fViewOperations, uVfsModule, uMultiListFileSource, uExceptions, uFileProcs,
@@ -2299,7 +2301,8 @@ begin
   with frmMain do
   begin
     GetParamValue(Params, 'columnset', AParam);
-    if (ActiveFrame is TColumnsFileView) then
+    // TTreeFileView inherits from TColumnsFileView: it must be replaced here
+    if (ActiveFrame is TColumnsFileView) and not (ActiveFrame is TTreeFileView) then
       TColumnsFileView(ActiveFrame).SetColumnSet(AParam)
     else begin
       aFileView:= TColumnsFileView.Create(ActiveNotebook.ActivePage, ActiveFrame, AParam);
@@ -2317,7 +2320,7 @@ begin
   with frmMain do
   begin
     GetParamValue(Params, 'columnset', AParam);
-    if (FrameLeft is TColumnsFileView) then
+    if (FrameLeft is TColumnsFileView) and not (FrameLeft is TTreeFileView) then
       TColumnsFileView(FrameLeft).SetColumnSet(AParam)
     else begin
       aFileView:= TColumnsFileView.Create(LeftTabs.ActivePage, FrameLeft, AParam);
@@ -2334,7 +2337,7 @@ begin
   with frmMain do
   begin
     GetParamValue(Params, 'columnset', AParam);
-    if (FrameRight is TColumnsFileView) then
+    if (FrameRight is TColumnsFileView) and not (FrameRight is TTreeFileView) then
       TColumnsFileView(FrameRight).SetColumnSet(AParam)
     else begin
       aFileView:= TColumnsFileView.Create(RightTabs.ActivePage, FrameRight, AParam);
@@ -2388,6 +2391,18 @@ procedure TMainCommands.cm_RightThumbView(const Params: array of string);
 begin
   ToggleOrNotToOrFromThumbnailsView(frmMain.FrameRight, frmMain.RightTabs);
   frmMain.ActiveFrame.SetFocus;
+end;
+
+procedure TMainCommands.cm_TreeFileView(const Params: array of string);
+var
+  aFileView: TFileView;
+begin
+  with frmMain do
+  begin
+    aFileView:= TTreeFileView.Create(ActiveNotebook.ActivePage, ActiveFrame);
+    ActiveNotebook.ActivePage.FileView:= aFileView;
+    ActiveFrame.SetFocus;
+  end;
 end;
 
 procedure TMainCommands.cm_TreeView(const Params: array of string);
@@ -3601,17 +3616,33 @@ end;
 procedure TMainCommands.cm_SyncDirs(const Params: array of string);
 var
   OperationType: TFileSourceOperationType;
-begin
-  with frmMain do
+
+  function isSupported: Boolean;
+  var
+    leftFS: IFileSource;
+    rightFS: IFileSource;
   begin
-    if GetCopyOperationType(FrameLeft.FileSource, FrameRight.FileSource, OperationType) or
-       GetCopyOperationType(FrameRight.FileSource, FrameLeft.FileSource, OperationType) then
-    begin
-      ShowSyncDirsDlg(FrameLeft, FrameRight);
-    end
-    else begin
-      msgWarning(rsMsgErrNotSupported);
-    end;
+    Result:= False;
+    leftFS:= frmMain.FrameLeft.FileSource;
+    rightFS:= frmMain.FrameRight.FileSource;
+    if NOT (fspSynchronizable in leftFS.GetProperties) then
+      Exit;
+    if NOT (fspSynchronizable in rightFS.GetProperties) then
+      Exit;
+    if NOT GetCopyOperationType(leftFS, rightFS, OperationType) then
+      Exit;
+    if NOT GetCopyOperationType(rightFS, leftFS, OperationType) then
+      Exit;
+    Result:= True;
+  end;
+
+begin
+  if isSupported then
+  begin
+    ShowSyncDirsDlg(frmMain.FrameLeft, frmMain.FrameRight);
+  end
+  else begin
+    msgWarning(rsMsgErrNotSupported);
   end;
 end;
 

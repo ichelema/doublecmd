@@ -16,7 +16,9 @@ type
   private
     _lockObject: TCriticalSection;
     _paths: TStringList;
+    _onChange: TNotifyEvent;
   private
+    procedure notifyChange;
     procedure addPath( const path: String ); inline;
     procedure removePath( const path: String ); inline;
     procedure doAddFromStringArray(const pathsArray: TStringArray);
@@ -31,6 +33,8 @@ type
     procedure addPaths( const files: TFiles );
     procedure removePaths( const files: TFiles );
 
+    // Returns a fresh file object owned by the caller, or nil if it is missing.
+    function findByFilename(const filename: String): TFile;
     function toFiles: TFiles;
     function toStringArray: TStringArray;
 
@@ -42,6 +46,9 @@ var
   stashFilesBackend: TStashFilesBackend;
 
 implementation
+
+uses
+  uFileSource;
 
 { TStashFilesBackend }
 
@@ -61,7 +68,13 @@ end;
 
 procedure TStashFilesBackend.setListener(const listener: TNotifyEvent);
 begin
-  _paths.OnChange:= listener;
+  _onChange:= listener;
+end;
+
+procedure TStashFilesBackend.notifyChange;
+begin
+  if Assigned(_onChange) then
+    _onChange(_paths);
 end;
 
 procedure TStashFilesBackend.addPath(const path: String);
@@ -73,8 +86,7 @@ procedure TStashFilesBackend.removePath(const path: String);
 var
   i: Integer;
 begin
-  _paths.Find( ExcludeTrailingPathDelimiter(path), i );
-  if i >= 0 then
+  if _paths.Find( ExcludeTrailingPathDelimiter(path), i ) then
     _paths.Delete( i );
 end;
 
@@ -86,6 +98,7 @@ begin
   finally
     _lockObject.Release;
   end;
+  notifyChange;
 end;
 
 function TStashFilesBackend.count: Integer;
@@ -102,6 +115,8 @@ procedure TStashFilesBackend.addPaths(const files: TFiles);
 var
   i: Integer;
 begin
+  if files.Count = 0 then
+    Exit;
   _lockObject.Acquire;
   try
     for i:= 0 to files.Count-1 do
@@ -109,6 +124,7 @@ begin
   finally
     _lockObject.Release;
   end;
+  notifyChange;
 end;
 
 procedure TStashFilesBackend.removePaths(const files: TFiles);
@@ -119,6 +135,28 @@ begin
   try
     for i:= 0 to files.Count-1 do
       self.removePath( files[i].FullPath );
+  finally
+    _lockObject.Release;
+  end;
+  notifyChange;
+end;
+
+function TStashFilesBackend.findByFilename(const filename: String): TFile;
+var
+  i: Integer;
+begin
+  Result:= nil;
+  _lockObject.Acquire;
+  try
+    for i:= 0 to _paths.Count - 1 do
+    begin
+      if ExtractFileName(_paths[i]) = filename then
+      try
+        Exit(TFileSystemFileSource.CreateFileFromFile(_paths[i]));
+      except
+        on EFileNotFound do ;
+      end;
+    end;
   finally
     _lockObject.Release;
   end;
@@ -167,11 +205,12 @@ procedure TStashFilesBackend.doAddFromStringArray(const pathsArray: TStringArray
 var
   path: String;
 begin
-  for path in pathsArray do begin
+  for path in pathsArray do
+  begin
     if path.IsEmpty then
       continue;
     if mbFileSystemEntryExists(path) then
-      self.addPath( path );
+      self.addPath(path);
   end;
 end;
 
@@ -183,6 +222,7 @@ begin
   finally
     _lockObject.Release;
   end;
+  notifyChange;
 end;
 
 procedure TStashFilesBackend.setFromStringArray(const pathsArray: TStringArray);
@@ -194,6 +234,7 @@ begin
   finally
     _lockObject.Release;
   end;
+  notifyChange;
 end;
 
 initialization
