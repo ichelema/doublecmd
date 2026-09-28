@@ -39,6 +39,9 @@ procedure SetFileSystemPath(aFileView: TFileView; aPath: String);
 function RenameFile(aFileSource: IFileSource; const aFile: TFile;
                     const NewFileName: String; Interactive: Boolean; Reload: Boolean): TSetFilePropertyResult;
 
+function FileExists(const fs: IFileSource; const path: String): Boolean; overload;
+function DirectoryExists(const fs: IFileSource; const path: String): Boolean; overload;
+function FileOrDirExists(const fs: IFileSource; const path: String): Boolean; overload;
 
 function isCompatibleFileSourceForCopyOperation( fs1: IFileSource; fs2: IFileSource ): Boolean;
 
@@ -431,6 +434,30 @@ begin
       FreeAndNil(aFiles);
     end;
   end;
+end;
+
+function FileExists(const fs: IFileSource; const path: String): Boolean;
+var
+  ret: TFileSourceExistsResult;
+begin
+  ret:= fs.FileSystemEntryExists(path, [TFileSourceExistsOption.needFile]);
+  Result:= ret <> TFileSourceExistsResult.notExist;
+end;
+
+function DirectoryExists(const fs: IFileSource; const path: String): Boolean;
+var
+  ret: TFileSourceExistsResult;
+begin
+  ret:= fs.FileSystemEntryExists(path, [TFileSourceExistsOption.needDir]);
+  Result:= ret <> TFileSourceExistsResult.notExist;
+end;
+
+function FileOrDirExists(const fs: IFileSource; const path: String): Boolean;
+var
+  ret: TFileSourceExistsResult;
+begin
+  ret:= fs.FileSystemEntryExists(path, [TFileSourceExistsOption.needFile, TFileSourceExistsOption.needDir]);
+  Result:= ret <> TFileSourceExistsResult.notExist;
 end;
 
 function isCompatibleFileSourceForCopyOperation(fs1: IFileSource; fs2: IFileSource): Boolean;

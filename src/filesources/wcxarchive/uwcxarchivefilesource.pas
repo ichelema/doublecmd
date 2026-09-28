@@ -94,6 +94,8 @@ type
     // Retrieve some properties of the file source.
     function GetProperties: TFileSourceProperties; override;
 
+    function FileSystemEntryExists(const Path: String; const Options: TFileSourceExistsOptions): TFileSourceExistsResult; override;
+
     // These functions create an operation object specific to the file source.
     function CreateListOperation(TargetPath: String): TFileSourceOperation; override;
     function CreateCopyInOperation(SourceFileSource: IFileSource;
@@ -520,7 +522,54 @@ end;
 
 function TWcxArchiveFileSource.GetProperties: TFileSourceProperties;
 begin
-  Result := [fspUsesConnections, fspListFlatView, fspSearchable];
+  Result := [fspUsesConnections, fspListFlatView, fspSearchable, fspSynchronizable];
+end;
+
+function TWcxArchiveFileSource.FileSystemEntryExists(
+  const Path: String;
+  const Options: TFileSourceExistsOptions): TFileSourceExistsResult;
+var
+  I: Integer;
+  AFileList: TList;
+  Header: TWCXHeader;
+  APath: String;
+  Exists: Boolean;
+begin
+  Result:= TFileSourceExistsResult.notExist;
+  if Options = [] then
+    Exit;
+
+  APath:= ExcludeTrailingPathDelimiter(Path);
+  if (Path <> EmptyStr) and (APath = ExcludeTrailingPathDelimiter(GetRootDir)) then
+  begin
+    if TFileSourceExistsOption.needDir in Options then
+      Result:= TFileSourceExistsResult.exists;
+    Exit;
+  end;
+
+  AFileList:= ArchiveFileList.LockList;
+  try
+    Exists:= False;
+    for I := 0 to AFileList.Count - 1 do
+    begin
+      Header:= TWCXHeader(AFileList.Items[I]);
+      if mbCompareFileNames(APath, ExcludeTrailingPathDelimiter(GetRootDir + Header.FileName)) then
+      begin
+        if Options = [TFileSourceExistsOption.needFile] then
+          Exists:= not FPS_ISDIR(Header.FileAttr)
+        else if Options = [TFileSourceExistsOption.needDir] then
+          Exists:= FPS_ISDIR(Header.FileAttr)
+        else
+          Exists:= True;
+        Break;
+      end;
+    end;
+  finally
+    ArchiveFileList.UnlockList;
+  end;
+
+  if Exists then
+    Result:= TFileSourceExistsResult.exists;
 end;
 
 function TWcxArchiveFileSource.GetSupportedFileProperties: TFilePropertiesTypes;

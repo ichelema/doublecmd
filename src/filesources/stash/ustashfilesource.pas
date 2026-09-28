@@ -50,6 +50,8 @@ type
     function GetRealPath(const path: String): String; override;
     function IsPathAtRoot(Path: String): Boolean; override;
     class function IsSupportedPath(const Path: String): Boolean; override;
+    function FileSystemEntryExists(const Path: String; const Options: TFileSourceExistsOptions): TFileSourceExistsResult; override;
+    function SetCurrentWorkingDirectory(NewDir: String): Boolean; override;
 
     class function GetMainIcon(out Path: String): Boolean; override;
     function GetCustomIcon(const path: String; const iconSize: Integer): TBitmap; override; overload;
@@ -321,10 +323,58 @@ begin
   Result:= Path.StartsWith( STASH_SCHEME );
 end;
 
+function TStashFileSource.FileSystemEntryExists(
+  const Path: String;
+  const Options: TFileSourceExistsOptions): TFileSourceExistsResult;
+var
+  filename: String;
+  f: TFile;
+  exists: Boolean;
+begin
+  Result:= TFileSourceExistsResult.notExist;
+  if (Options = []) or (Path = EmptyStr) then
+    Exit;
+
+  if ExcludeTrailingPathDelimiter(Path) = ExcludeTrailingPathDelimiter(GetRootDir) then
+  begin
+    if TFileSourceExistsOption.needDir in Options then
+      Result:= TFileSourceExistsResult.exists;
+    Exit;
+  end;
+
+  if not Path.StartsWith(GetRootDir) then
+    Exit;
+  filename:= Copy(ExcludeTrailingPathDelimiter(Path), Length(GetRootDir) + 1, MaxInt);
+  f:= stashFilesBackend.findByFilename(filename);
+  try
+    if Assigned(f) then
+    begin
+      if Options = [TFileSourceExistsOption.needFile] then
+        exists:= not f.IsDirectory
+      else if Options = [TFileSourceExistsOption.needDir] then
+        exists:= f.IsDirectory
+      else
+        exists:= True;
+    end
+    else
+      exists:= False;
+  finally
+    f.Free;
+  end;
+
+  if exists then
+    Result:= TFileSourceExistsResult.exists;
+end;
+
+function TStashFileSource.SetCurrentWorkingDirectory(NewDir: String): Boolean;
+begin
+  Result:= IsPathAtRoot(NewDir);
+end;
+
 function TStashFileSource.GetProperties: TFileSourceProperties;
 begin
   Result:= _fileSystemFS.Properties;
-  Result-= [fspListFlatView];
+  Result-= [fspListFlatView, fspSynchronizable];
   Result+= [fspLinksToLocalFiles, fspDontChangePath, fspDontCreateDirectory];
 end;
 

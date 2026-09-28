@@ -258,13 +258,13 @@ begin
   AClass:= gVfsModuleList.GetFileSource(NewPath);
 
   // Check file name on the local file system only
-  if not ((AClass = nil) and mbFileExists(NewPath)) then
+  if not ((AClass = nil) and FileExists(FFileView.FileSource, NewPath)) then
   begin
-    if not ChooseFileSource(FFileView, NewPath, True) then
+    if not ChooseFileSource(FFileView, IncludeTrailingPathDelimiter(NewPath), True) then
       Exit;
   end
   else begin
-    if not ChooseFileSource(FFileView, ExtractFileDir(NewPath)) then
+    if not ChooseFileSource(FFileView, IncludeTrailingPathDelimiter(ExtractFileDir(NewPath)), True) then
       Exit;
     FFileView.SetActiveFile(ExtractFileName(NewPath));
   end;

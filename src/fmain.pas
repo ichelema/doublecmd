@@ -4836,7 +4836,7 @@ begin
           else begin
             AFileSource:= FileView.FileSource;
           end;
-          if not AFileSource.FileSystemEntryExists(ExcludeTrailingBackslash(NewPath)) then
+          if not FileOrDirExists(AFileSource, ExcludeTrailingBackslash(NewPath)) then
           begin
             actSyncChangeDir.Checked:= False;
             Exit(False);

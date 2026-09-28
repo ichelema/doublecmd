@@ -47,6 +47,7 @@ type
     function GetRootDir(sPath : String): String; override;
     function IsSystemFile(aFile: TFile): Boolean; override;
     function IsPathAtRoot(Path: String): Boolean; override;
+    function GetRealPath(const APath: String): String; override;
     function GetDisplayFileName(aFile: TFile): String; override;
     function QueryContextMenu(AFiles: TFiles; var AMenu: TPopupMenu): Boolean; override;
 
@@ -479,6 +480,8 @@ var
   i: Integer;
 begin
   Result:= False;
+  if aFiles = nil then
+    Exit;
   for i:=0 to aFiles.Count-1 do begin
     Result:= isSeedFile( aFiles[i] );
     if Result then
@@ -820,6 +823,14 @@ begin
     testPath:= ExcludeTrailingPathDelimiter( Path );
     Result:= ( testPath=iCloudPath );
   end;
+end;
+
+function TiCloudDriveFileSource.GetRealPath(const APath: String): String;
+begin
+  if self.IsPathAtRoot(APath) then
+    Result:= IncludeTrailingPathDelimiter( uDCUtils.ReplaceTilde(iCloudDriveConfig.path.drive) )
+  else
+    Result:= inherited;
 end;
 
 function TiCloudDriveFileSource.GetDisplayFileName(aFile: TFile): String;

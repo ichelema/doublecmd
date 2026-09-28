@@ -38,7 +38,7 @@ type
       function GetProcessor: TFileSourceProcessor; override;
       function GetPathType(sPath : String): TPathType; override;
       function CreateDirectory(const Path: String): Boolean; override;
-      function FileSystemEntryExists(const Path: String): Boolean; override;
+      function FileSystemEntryExists(const Path: String; const Options: TFileSourceExistsOptions): TFileSourceExistsResult; override;
       function GetFreeSpace(Path: String; out FreeSize, TotalSize : Int64) : Boolean; override;
 
       class function CreateFile(const APath: String): TFile; override;
@@ -456,18 +456,30 @@ begin
   g_object_unref(PGObject(AGFile));
 end;
 
-function TGioFileSource.FileSystemEntryExists(const Path: String): Boolean;
+function TGioFileSource.FileSystemEntryExists(
+  const Path: String;
+  const Options: TFileSourceExistsOptions): TFileSourceExistsResult;
 var
   AGFile: PGFile;
   TargetPath: String;
+  AFileType: TGFileType;
 begin
+  Result:= TFileSourceExistsResult.notExist;
+  if Options = [] then
+    Exit;
+
   if StrBegins(Path, FCurrentAddress) then
     TargetPath := Path
   else begin
     TargetPath := FCurrentAddress + Path;
   end;
   AGFile := GioNewFile(TargetPath);
-  Result := g_file_query_exists (AGFile, nil);
+  AFileType:= g_file_query_file_type(AGFile, G_FILE_QUERY_INFO_NONE, nil);
+  if (((TFileSourceExistsOption.needFile in Options) and
+       (AFileType <> G_FILE_TYPE_DIRECTORY) and (AFileType <> G_FILE_TYPE_UNKNOWN)) or
+      ((TFileSourceExistsOption.needDir in Options) and
+       (AFileType = G_FILE_TYPE_DIRECTORY))) then
+    Result:= TFileSourceExistsResult.exists;
   g_object_unref(PGObject(AGFile));
 end;
 
@@ -510,7 +522,7 @@ end;
 
 function TGioFileSource.GetProperties: TFileSourceProperties;
 begin
-  Result:=inherited GetProperties;
+  Result := [fspVirtual, fspSynchronizable];
 end;
 
 function TGioFileSource.CreateListOperation(TargetPath: String): TFileSourceOperation;

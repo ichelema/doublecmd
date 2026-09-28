@@ -94,6 +94,9 @@ type
     constructor Create(aModuleFileName, aPluginRootName: String); reintroduce;
     destructor Destroy; override;
 
+    function FileSystemEntryExists(const Path: String; const Options: TFileSourceExistsOptions): TFileSourceExistsResult; override;
+    function SetCurrentWorkingDirectory(NewDir: String): Boolean; override;
+
     class function CreateFile(const APath: String): TFile; override;
     class function CreateFile(const APath: String; FindData: TWfxFindData): TFile; overload;
 
@@ -173,7 +176,8 @@ uses
   uWfxPluginCopyInOperation, uWfxPluginCopyOutOperation,  uWfxPluginMoveOperation, uVfsModule,
   uWfxPluginExecuteOperation, uWfxPluginListOperation, uWfxPluginCreateDirectoryOperation,
   uWfxPluginDeleteOperation, uWfxPluginSetFilePropertyOperation, uWfxPluginCopyOperation,
-  DCConvertEncoding, uWfxPluginCalcStatisticsOperation, uFileFunctions, uPixMapManager;
+  DCConvertEncoding, uWfxPluginCalcStatisticsOperation, uFileFunctions, uPixMapManager,
+  uFileSourceUtil;
 
 const
   connCopyIn      = 0;
@@ -529,6 +533,59 @@ begin
   inherited Destroy;
 end;
 
+function TWfxPluginFileSource.FileSystemEntryExists(
+  const Path: String;
+  const Options: TFileSourceExistsOptions): TFileSourceExistsResult;
+var
+  FindData: TWfxFindData;
+  Handle: THandle;
+  AFile: TFile;
+  Exists: Boolean;
+begin
+  Result:= TFileSourceExistsResult.notExist;
+  if (Options = []) or (Path = EmptyStr) then
+    Exit;
+
+  if Path = PathDelim then
+  begin
+    if TFileSourceExistsOption.needDir in Options then
+      Result:= TFileSourceExistsResult.exists;
+    Exit;
+  end;
+
+  Exists:= False;
+  if TFileSourceExistsOption.needDir in Options then
+  begin
+    Handle:= WfxModule.WfxFindFirst(Path, FindData);
+    if Handle <> wfxInvalidHandle then
+    try
+      Exists:= True;
+    finally
+      WfxModule.FsFindClose(Handle);
+    end;
+  end;
+
+  if not Exists then
+  begin
+    AFile:= nil;
+    if FillSingleFile(ExcludeTrailingPathDelimiter(Path), AFile) then
+    try
+      Exists:= ((TFileSourceExistsOption.needDir in Options) and AFile.IsDirectory) or
+               ((TFileSourceExistsOption.needFile in Options) and not AFile.IsDirectory);
+    finally
+      AFile.Free;
+    end;
+  end;
+
+  if Exists then
+    Result:= TFileSourceExistsResult.exists;
+end;
+
+function TWfxPluginFileSource.SetCurrentWorkingDirectory(NewDir: String): Boolean;
+begin
+  Result:= DirectoryExists(Self, NewDir);
+end;
+
 class function TWfxPluginFileSource.CreateFile(const APath: String): TFile;
 begin
   Result := TFile.Create(APath);
@@ -632,7 +689,7 @@ end;
 
 function TWfxPluginFileSource.GetProperties: TFileSourceProperties;
 begin
-  Result := [fspUsesConnections, fspListOnMainThread];
+  Result := [fspUsesConnections, fspListOnMainThread, fspSynchronizable];
   with FWfxModule do
   begin
     if Assigned(FsLinksToLocalFiles) and FsLinksToLocalFiles() then
@@ -774,16 +831,18 @@ begin
     Handle := WfxFindFirst(FilePath, FindData);
     if Handle = wfxInvalidHandle then Exit;
 
-    repeat
-      if (FindData.FileName = ExpectedFileName) then
-      begin
-        aFile := TWfxPluginFileSource.CreateFile(FilePath, FindData);
-        Result := True;
-        Break;
-      end;
-    until not WfxFindNext(Handle, FindData);
-
-    FsFindClose(Handle);
+    try
+      repeat
+        if (FindData.FileName = ExpectedFileName) then
+        begin
+          aFile := TWfxPluginFileSource.CreateFile(FilePath, FindData);
+          Result := True;
+          Break;
+        end;
+      until not WfxFindNext(Handle, FindData);
+    finally
+      FsFindClose(Handle);
+    end;
   end;
 end;
 
@@ -936,12 +995,16 @@ begin
 end;
 
 function TWfxPluginFileSource.CreateDirectory(const Path: String): Boolean;
+var
+  parentPath: String;
 begin
-  Result:= WfxModule.WfxMkDir(ExtractFilePath(Path), Path) = WFX_SUCCESS;
+  parentPath:= ExtractFilePath(ExcludeTrailingPathDelimiter(Path));
+  Result:= WfxModule.WfxMkDir(parentPath, Path) = WFX_SUCCESS;
   if Result then
   begin
     if (log_vfs_op in gLogOptions) and (log_success in gLogOptions) then
-      logWrite(Format(rsMsgLogSuccess + rsMsgLogMkDir, [Path]), lmtSuccess)
+      logWrite(Format(rsMsgLogSuccess + rsMsgLogMkDir, [Path]), lmtSuccess);
+    Self.Reload(parentPath);
   end
   else begin
     if (log_vfs_op in gLogOptions) and (log_errors in gLogOptions) then
