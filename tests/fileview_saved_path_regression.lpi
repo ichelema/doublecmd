@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CONFIG>
+  <ProjectOptions>
+    <Version Value="13"/>
+    <General>
+      <Flags>
+        <MainUnitHasUsesSectionForAllUnits Value="False"/>
+      </Flags>
+      <Title Value="Saved file view path regression"/>
+      <UseAppBundle Value="False"/>
+    </General>
+    <BuildModes Count="1">
+      <Item1 Name="Default" Default="True"/>
+    </BuildModes>
+    <RequiredPackages Count="13">
+      <Item1><PackageName Value="SynUni"/></Item1>
+      <Item2><PackageName Value="DateTimeCtrls"/></Item2>
+      <Item3><PackageName Value="kascrypt"/></Item3>
+      <Item4><PackageName Value="chsdet"/></Item4>
+      <Item5><PackageName Value="LazControls"/></Item5>
+      <Item6><PackageName Value="GifView"/></Item6>
+      <Item7><PackageName Value="VirtualTerminal"/></Item7>
+      <Item8><PackageName Value="KASComp"/></Item8>
+      <Item9><PackageName Value="LCL"/></Item9>
+      <Item10><PackageName Value="SynEdit"/></Item10>
+      <Item11><PackageName Value="viewerpackage"/></Item11>
+      <Item12><PackageName Value="doublecmd_common"/></Item12>
+      <Item13><PackageName Value="Image32"/></Item13>
+    </RequiredPackages>
+    <Units Count="1">
+      <Unit0>
+        <Filename Value="fileview_saved_path_regression.lpr"/>
+        <IsPartOfProject Value="True"/>
+      </Unit0>
+    </Units>
+  </ProjectOptions>
+  <CompilerOptions>
+    <Version Value="11"/>
+    <Target>
+      <Filename Value="../units/$(TargetCPU)-$(TargetOS)-saved-path-tests/fileview_saved_path_regression"/>
+    </Target>
+    <SearchPaths>
+      <IncludeFiles Value="$(LazarusDir)/ide;$(ProjOutDir);../sdk;../units"/>
+      <OtherUnitFiles Value="../src;../src/platform;../src/platform/$(SrcOS);../src/platform/$(SrcOS)/$(TargetOS);../sdk;../src/frames;../src/fileviews;../src/filesources;../src/filesources/filesystem;../src/filesources/multiarchive;../src/filesources/multilist;../src/filesources/searchresult;../src/filesources/tempfilesystem;../src/filesources/vfs;../src/filesources/wcxarchive;../src/filesources/wfxplugin;../src/filesources/winnet;../src/platform/unix/glib;../src/platform/unix/mime;../src/filesources/gio;../src/rpc;../src/rpc/sys/$(SrcOS);../src/rpc/sys;../src/filesources/recyclebin;../src/filesources/gio/trash;../src/filesources/winnet/wsl;../src/filesources/shellfolder;../src/platform/win/winrt;../src/filesources/gio/network;../src/filesources/mounted;../src/filesources/gio/google;../src/filesources/stash"/>
+      <UnitOutputDirectory Value="../units/$(TargetCPU)-$(TargetOS)-saved-path-tests"/>
+    </SearchPaths>
+    <Conditionals Value="if (Laz_FullVersion &gt;= 4990000) then
+begin
+  CustomOptions += &apos;-dLCL_VER_499&apos;;
+end;
+if (LCLWidgetType = &apos;qt6&apos;) and (TargetOS &lt;&gt; &apos;darwin&apos;) then
+begin
+  UnitPath += &apos;../src/platform/$(SrcOS)/qt6;../src/platform/$(SrcOS)/wayland;&apos;;
+end;"/>
+    <Parsing>
+      <SyntaxOptions>
+        <IncludeAssertionCode Value="True"/>
+      </SyntaxOptions>
+    </Parsing>
+    <CodeGeneration>
+      <Checks>
+        <IOChecks Value="True"/>
+        <RangeChecks Value="True"/>
+      </Checks>
+    </CodeGeneration>
+    <Other>
+      <CustomOptions Value="-dTURN_OFF_LUA_JIT -dXDG -dRabbitVCS"/>
+    </Other>
+  </CompilerOptions>
+</CONFIG>

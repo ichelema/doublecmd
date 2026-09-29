@@ -218,7 +218,7 @@ begin
       Inc(Run);
       LongRec(fRange).Lo := rsUnknown;
       Exit;
-    end else if FLine[Run] = '\' then
+    end else if (FLine[Run] = '\') and not IsLineEnd(Run + 1) then
       Inc(Run);
     Inc(Run)
   end;
