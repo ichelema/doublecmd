@@ -985,16 +985,15 @@ begin
     while (I < Count) and (CompareStr(Strings[I], sLine) <> 0) do Inc(I);
 
     if (I < 0) or (I >= Count) then
-      begin
-        comboBox.Items.Insert(0, sLine);
-        comboBox.ItemIndex := 0;
-      end
+      comboBox.Items.Insert(0, sLine)
     else if (I > 0) then
-      begin
-        comboBox.Items.Move(I, 0);
-        // Reset selected item (and combobox text), because Move has destroyed it.
-        comboBox.ItemIndex := 0;
-      end;
+      comboBox.Items.Move(I, 0);
+{$IF DEFINED(LCLQT) OR DEFINED(LCLQT5) OR DEFINED(LCLQT6)}
+    // Inserting or moving an item may leave Qt's displayed text stale.
+    comboBox.ItemIndex := -1;
+{$ENDIF}
+    // Reset both the selected item and the combobox text.
+    comboBox.ItemIndex := 0;
     Objects[0]:= TObject(AValue);
   end;
 end;

@@ -2729,8 +2729,10 @@ begin
         FHistory.Add(aFileSource, APage.LockPath);
       end;
     end;
-    if TFileSystemFileSource.ClassNameIs(aFileSource.ClassName) then
+    if TFileSystemFileSource.ClassNameIs(aFileSource.ClassName) and
+       not (fvfDelayLoadingFiles in Flags) then
     begin
+      // A delayed tab's path may only be temporarily unavailable.
       // Go to upper directory if current doesn't exist
       sPath := GetDeepestExistingPath(FHistory.CurrentPath);
       if Length(sPath) = 0 then sPath := mbGetCurrentDir;
