@@ -19,7 +19,7 @@ type
 implementation
 
 uses
-  Forms, LazGLib2, LazGdk3;
+  XLib, Forms, LazGLib2, LazGdk3;
 
 { TGtk3WidgetSetEx }
 
@@ -86,10 +86,12 @@ begin
 end;
 
 initialization
+  // GTK can select X11 without session hints (startx, or a backend fallback).
+  // XInitThreads initializes Xlib locking; it does not open an X display.
+  XInitThreads;
   CreateWidgetset(TGtk3WidgetSetEx);
 
 finalization
   FreeWidgetSet;
 
 end.
-

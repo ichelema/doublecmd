@@ -236,6 +236,7 @@ function ContrastColor(Color: TColor; APercent: Byte): TColor;
 procedure SetColorInColorBox(const lcbColorBox: TColorBox; const lColor: TColor);
 procedure UpdateColor(Control: TControl; Checked: Boolean);
 function findScaleFactorByFirstForm: Double;
+function findScaleFactorByFirstFormEx: Double;
 function findScaleFactorByControl( control: TControl ): Double;
 procedure EnableControl(Control:  TControl; Enabled: Boolean);
 procedure AlignControlsEx(AContainer: TWinControl; AComboBox: TWinControl; ALabel: TLabel);
@@ -1280,6 +1281,20 @@ begin
     Result:= Screen.Forms[0].GetCanvasScaleFactor();
 end;
 
+function findScaleFactorByFirstFormEx: Double;
+begin
+  Result:= 1;
+  if Screen.FormCount > 0 then
+  begin
+{$IF DEFINED(LCLGTK2) OR DEFINED(LCLWIN32)}
+    if Screen.Forms[0].PixelsPerInch > 96 then
+      Result:= Screen.Forms[0].PixelsPerInch / 96;
+{$ELSE}
+    Result:= Screen.Forms[0].GetCanvasScaleFactor();
+{$ENDIF}
+  end;
+end;
+
 function findScaleFactorByControl( control: TControl ): Double;
 var
   topParent: TControl;
@@ -1429,4 +1444,3 @@ begin
 end;
 
 end.
-
