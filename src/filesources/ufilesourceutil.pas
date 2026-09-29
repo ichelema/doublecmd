@@ -464,7 +464,7 @@ function isCompatibleFileSourceForCopyOperation(fs1: IFileSource; fs2: IFileSour
 begin
   Result:= (fsoCopy in fs1.GetOperationsTypes) and
            (fsoCopy in fs2.GetOperationsTypes) and
-           fs1.Equals(fs1) and
+           fs1.Equals(fs2) and
            SameText(fs1.GetCurrentAddress, fs2.GetCurrentAddress);
 end;
 

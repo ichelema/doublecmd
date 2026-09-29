@@ -120,6 +120,7 @@ type
 
 {$IF DEFINED(LINUX)}
   {$define fpgeterrno:= fpgetCerrno}
+  {$define fpseterrno:= fpsetCerrno}
   function fpOpenDir(dirname: PAnsiChar): pDir; cdecl; external clib name 'opendir';
   function fpReadDir(var dirp: TDir): pDirent; cdecl; external clib name 'readdir64';
   function fpCloseDir(var dirp: TDir): cInt; cdecl; external clib name 'closedir';
@@ -261,6 +262,7 @@ begin
   Result:= -1;
   if UnixFindHandle = nil then Exit;
   if UnixFindHandle^.DirPtr = nil then Exit;
+  fpSetErrno(0);
   PtrDirEnt:= fpReadDir(UnixFindHandle^.DirPtr^);
   while PtrDirEnt <> nil do
   begin
@@ -268,9 +270,13 @@ begin
     Result:= mbFindMatchingFile(SearchRec);
     if Result = 0 then // if found then exit
       Exit
-    else // else read next
+    else begin // else read next
+      fpSetErrno(0);
       PtrDirEnt:= fpReadDir(UnixFindHandle^.DirPtr^);
+    end;
   end;
+  if fpgeterrno <> 0 then
+    Result:= fpgeterrno;
 end;
 {$ENDIF}
 

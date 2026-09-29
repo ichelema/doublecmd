@@ -66,20 +66,23 @@ begin
             if FGioFileSource.MountPath(AFolder, AError) then
               Continue
             else begin
-              ShowError(AError);
-              Exit;
+              if Assigned(AError) then
+                ShowError(AError);
+              RaiseAbortOperation;
             end;
           end
           else if g_error_matches(AError, G_IO_ERROR, G_IO_ERROR_NOT_FOUND) then
           begin
-            FreeAndNil(AError);
-            Exit;
+            ShowError(AError);
+            RaiseAbortOperation;
           end
           else begin
             ShowError(AError);
-            Exit;
+            RaiseAbortOperation;
           end;
         end;
+        if not Assigned(AFileEnum) then
+          RaiseAbortOperation;
         Break;
       end;
       // List files
@@ -95,9 +98,14 @@ begin
           FFiles.Add(AFile);
           AInfo:= g_file_enumerator_next_file(AFileEnum, nil, @AError);
         end;
-        if Assigned(AError) then ShowError(AError);
+        if Assigned(AError) then
+        begin
+          ShowError(AError);
+          RaiseAbortOperation;
+        end;
       finally
-        g_object_unref(AFileEnum);
+        if Assigned(AFileEnum) then
+          g_object_unref(AFileEnum);
       end;
     finally
       g_object_unref(PGObject(AFolder));
@@ -106,4 +114,3 @@ begin
 end;
 
 end.
-

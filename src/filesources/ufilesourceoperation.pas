@@ -184,6 +184,7 @@ type
        Used to determine whether the operation has started or not.
     }
     FOperationInitialized : Boolean;
+    FAbortOnSkip: Boolean;
 
     {en
        Last start time (when operation started or resumed after pause).
@@ -447,6 +448,7 @@ type
     property Result: TFileSourceOperationResult read FOperationResult;
     property FileSource: IInterface read FFileSource;
     property Elevate: TDuplicates read FElevate write FElevate;
+    property AbortOnSkip: Boolean read FAbortOnSkip write FAbortOnSkip;
     property WantsNewConnection: Boolean read FWantsNewConnection write FWantsNewConnection;
   end;
 
@@ -481,6 +483,7 @@ begin
   FState := fsosNotStarted;
   FDesiredState := fsosRunning;  // set for auto-start unless prevented by PreventStart
   FOperationResult := fsorFinished;
+  FAbortOnSkip:= False;
   FPauseEvent := TSimpleEvent.Create;
   FConnectionAvailableEvent := TSimpleEvent.Create;
   FStateLock := TCriticalSection.Create;
@@ -1278,6 +1281,8 @@ begin
 
   if bStateChanged then
     NotifyStateChanged(OldState);
+  if FAbortOnSkip and (Result in [fsourSkip, fsourSkipAll]) then
+    RaiseAbortOperation;
 end;
 
 procedure TFileSourceOperation.TryAskQuestion;
@@ -1326,4 +1331,3 @@ begin
 end;
 
 end.
-
