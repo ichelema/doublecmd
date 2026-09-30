@@ -31,6 +31,11 @@ interface
 uses
   SysUtils, Classes, DCOSUtils, DCStringHashListUtf8, DCClassesUtf8;
 
+const
+  EXT_IDX_PNG = 0;
+  EXT_IDX_XPM = 1;
+  EXT_IDX_SVG = 2;
+
 type
 
   { TIconCache }
@@ -82,6 +87,8 @@ type
     FComment: String;
     FCache: TIconCache;
     FCacheIndex: Integer;
+    FParentIndex: Integer;
+    FBaseDirIndex: Integer;
     FDefaultTheme: String;
     FInherits: TStringList;
     FOwnsInheritsObject: Boolean;
@@ -90,7 +97,7 @@ type
     FBaseDirListAtCreate: array of String; //en> Base dir list passed to Create
     function LoadIconDirInfo(const IniFile: TIniFileEx; const sIconDirName: String): PIconDirInfo;
     function FindIconHelper(aIconName: String; AIconSize, AIconScale: Integer): String;
-    function LoadThemeWithInherited(AInherits: TStringList): Boolean;
+    function LoadThemeWithInherited(AInherits: TStringList): Boolean; virtual;
     procedure LoadParentTheme(AThemeName: String);
     procedure CacheDirectoryFiles(SubDirIndex: Integer; BaseDirIndex: Integer);
   protected
@@ -114,11 +121,6 @@ implementation
 
 uses
   LCLProc, StrUtils, uDebug, uFindEx, DCBasicTypes, DCStrUtils;
-
-const
-  EXT_IDX_PNG = 0;
-  EXT_IDX_XPM = 1;
-  EXT_IDX_SVG = 2;
 
 const
   HAS_SUFFIX_XPM = 1;
@@ -404,6 +406,8 @@ var
 begin
   FTheme:= sThemeName;
   FDefaultTheme:= ADefaultTheme;
+  FParentIndex:= -1;
+  FBaseDirIndex:= -1;
   FOwnsInheritsObject:= False;
   FDirectories:= nil;
   J:= 0;
@@ -440,10 +444,17 @@ var
   ADefaultArray: TDynamicStringArray;
 begin
    Result := LoadThemeWithInherited(FInherits);
-   if Result and FOwnsInheritsObject then
+   if not Result and (FDefaultTheme <> EmptyStr) then
+   begin
+     FInherits:= TStringList.Create;
+     FInherits.OwnsObjects:= True;
+     FOwnsInheritsObject:= True;
+   end;
+   if FOwnsInheritsObject then
    begin
      ADefaultArray:= SplitString(FDefaultTheme, PathSeparator);
      for ADefault in ADefaultArray do LoadParentTheme(ADefault);
+     Result:= Result or (FInherits.Count > 0);
    end;
 end;
 
@@ -583,6 +594,7 @@ begin
 
         if FoundIndex >= 0 then
         begin
+          FBaseDirIndex:= J;
           ExtIdx:= PtrInt(FDirectories.Items[I]^.FileListCache[J].List[FoundIndex]^.Data);
 
           Result:= FBaseDirList[J] + PathDelim + FTheme + PathDelim +
@@ -648,7 +660,10 @@ var
 begin
   Result:= LookupIcon(AIconName, AIconSize, AIconScale);
   if Result <> EmptyStr then
+  begin
+    FParentIndex:= -1;
     Exit;
+  end;
 
   if Assigned(FInherits) then
     begin
@@ -657,7 +672,10 @@ begin
         begin
           Result:= TIconTheme(FInherits.Objects[I]).LookupIcon(aIconName, AIconSize, AIconScale);
           if Result <> EmptyStr then
+          begin
+            FParentIndex:= I;
             Exit;
+          end;
         end;
     end;
 
