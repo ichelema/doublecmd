@@ -2985,6 +2985,14 @@ msgstr "Transferir a pasta sob o cursor para a janela esquerda"
 msgid "Transfer dir under cursor to right window"
 msgstr "Transferir a pasta sob o cursor para a janela direita"
 
+#: tfrmmain.acttreefileview.caption
+msgid "Tree"
+msgstr ""
+
+#: tfrmmain.acttreefileview.hint
+msgid "Tree View"
+msgstr ""
+
 #: tfrmmain.acttreeview.caption
 msgid "&Tree View Panel"
 msgstr "Vis&ta em árvore"
@@ -6876,7 +6884,7 @@ msgid ""
 "This feature requires additional system permission.\n"
 "\n"
 "Enabling it will automatically guide you to the\n"
-"System Settings > Privacy & Security > Accessibility Panel.\n"
+"System Settings > Privacy && Security > Accessibility Panel.\n"
 "\n"
 "Each time a new version of DC is installed, you must first\n"
 "remove DC from the list and then add it back in."
@@ -9255,6 +9263,10 @@ msgstr "assimétrico"
 msgid "by content"
 msgstr "por conteúdo"
 
+#: tfrmsyncdirsdlg.chkemptydir.caption
+msgid "empty directories"
+msgstr ""
+
 #: tfrmsyncdirsdlg.chkignoredate.caption
 msgid "ignore date"
 msgstr "ignorar data"
@@ -9349,6 +9361,10 @@ msgstr "!="
 #: tfrmsyncdirsdlg.sbsingles.caption
 msgid "singles"
 msgstr "únicos"
+
+#: tfrmsyncdirsdlg.sbunknown.caption
+msgid "?"
+msgstr ""
 
 #: tfrmsyncdirsdlg.statusbar1.panels[0].text
 msgid "Please press \"Compare\" to start"

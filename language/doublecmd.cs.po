@@ -2943,6 +2943,14 @@ msgstr "Přenést složku pod kurzorem do levého okna"
 msgid "Transfer dir under cursor to right window"
 msgstr "Přenést složku pod kurzorem do pravého okna"
 
+#: tfrmmain.acttreefileview.caption
+msgid "Tree"
+msgstr ""
+
+#: tfrmmain.acttreefileview.hint
+msgid "Tree View"
+msgstr ""
+
 #: tfrmmain.acttreeview.caption
 msgid "&Tree View Panel"
 msgstr "S&tromové zobrazení"
@@ -6768,7 +6776,7 @@ msgid ""
 "This feature requires additional system permission.\n"
 "\n"
 "Enabling it will automatically guide you to the\n"
-"System Settings > Privacy & Security > Accessibility Panel.\n"
+"System Settings > Privacy && Security > Accessibility Panel.\n"
 "\n"
 "Each time a new version of DC is installed, you must first\n"
 "remove DC from the list and then add it back in."
@@ -9086,6 +9094,10 @@ msgstr "asymetricky"
 msgid "by content"
 msgstr "podle obsahu"
 
+#: tfrmsyncdirsdlg.chkemptydir.caption
+msgid "empty directories"
+msgstr ""
+
 #: tfrmsyncdirsdlg.chkignoredate.caption
 msgid "ignore date"
 msgstr "ignorovat datum"
@@ -9180,6 +9192,10 @@ msgstr "!="
 #: tfrmsyncdirsdlg.sbsingles.caption
 msgid "singles"
 msgstr "samostatné"
+
+#: tfrmsyncdirsdlg.sbunknown.caption
+msgid "?"
+msgstr ""
 
 #: tfrmsyncdirsdlg.statusbar1.panels[0].text
 msgid "Please press \"Compare\" to start"

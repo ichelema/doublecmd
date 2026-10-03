@@ -3160,6 +3160,14 @@ msgctxt "tfrmmain.acttransferright.caption"
 msgid "Transfer dir under cursor to right window"
 msgstr "Premjesti mape pod pokazivačem na desni prozor"
 
+#: tfrmmain.acttreefileview.caption
+msgid "Tree"
+msgstr ""
+
+#: tfrmmain.acttreefileview.hint
+msgid "Tree View"
+msgstr ""
+
 #: tfrmmain.acttreeview.caption
 msgctxt "tfrmmain.acttreeview.caption"
 msgid "&Tree View Panel"
@@ -7224,7 +7232,7 @@ msgid ""
 "This feature requires additional system permission.\n"
 "\n"
 "Enabling it will automatically guide you to the\n"
-"System Settings > Privacy & Security > Accessibility Panel.\n"
+"System Settings > Privacy && Security > Accessibility Panel.\n"
 "\n"
 "Each time a new version of DC is installed, you must first\n"
 "remove DC from the list and then add it back in."
@@ -9655,6 +9663,10 @@ msgstr "nesimetrično"
 msgid "by content"
 msgstr "po sadržaju"
 
+#: tfrmsyncdirsdlg.chkemptydir.caption
+msgid "empty directories"
+msgstr ""
+
 #: tfrmsyncdirsdlg.chkignoredate.caption
 msgid "ignore date"
 msgstr "zanemari datum"
@@ -9749,6 +9761,10 @@ msgstr "!="
 #: tfrmsyncdirsdlg.sbsingles.caption
 msgid "singles"
 msgstr "pojedinačni"
+
+#: tfrmsyncdirsdlg.sbunknown.caption
+msgid "?"
+msgstr ""
 
 #: tfrmsyncdirsdlg.statusbar1.panels[0].text
 msgid "Please press \"Compare\" to start"
