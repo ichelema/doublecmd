@@ -27,7 +27,6 @@ type
 
   private
     FWcxArchiveFileSource: IWcxArchiveFileSource;
-    FFileList: TStringHashListUtf8;
 
     {en
       Convert TFiles into a string separated with #0 (format used by WCX).
@@ -42,7 +41,6 @@ type
 
   protected
     procedure SetProcessDataProc(hArcData: TArcHandle);
-    procedure DoReloadFileSources; override;
 
   protected
     FCurrentFile: TFile;
@@ -56,8 +54,6 @@ type
                        aTargetFileSource: IFileSource;
                        var theSourceFiles: TFiles;
                        aTargetPath: String); override;
-
-    destructor Destroy; override;
 
     procedure Initialize; override;
     procedure MainExecute; override;
@@ -111,6 +107,15 @@ begin
       if Size > 0 then
       begin
         DoneBytes := DoneBytes + Size;
+
+        {
+          the calculation in FillAndCount() does not necessarily match that in plugins,
+          particularly regarding the handling of symlinks, so this check has been added
+          to prevent reporting an erroneous progress exceeding 100%
+        }
+        if DoneBytes > TotalBytes then
+          TotalBytes:= DoneBytes + 1;
+
         if TotalFiles = 1 then begin
           CurrentFileDoneBytes := DoneBytes;
           CurrentFileTotalBytes := TotalBytes;
@@ -174,8 +179,6 @@ begin
 
   FNeedsConnection:= (FWcxArchiveFileSource.WcxModule.BackgroundFlags and BACKGROUND_PACK = 0);
 
-  FFileList:= TStringHashListUtf8.Create(True);
-
   // Get initialized statistics; then we change only what is needed.
   FStatistics := RetrieveStatistics;
   with FStatistics do
@@ -186,47 +189,13 @@ begin
   end;
 end;
 
-destructor TWcxArchiveCopyInOperation.Destroy;
-var
-  Index: Integer;
-begin
-  inherited Destroy;
-
-  for Index:= 0 to FFileList.Count - 1 do
-  begin
-    TObject(FFileList.List[Index]^.Data).Free;
-  end;
-
-  FreeAndNil(FFileList);
-end;
-
 procedure TWcxArchiveCopyInOperation.Initialize;
-var
-  Index: Integer;
-  Item: TObjectEx;
-  AFileList: TList;
 begin
   // Is plugin allow multiple Operations?
   if FNeedsConnection then
     WcxCopyInOperationG := Self
   else
     WcxCopyInOperationT := Self;
-
-  // Need to check file existence
-  if FFileExistsOption <> fsoofeOverwrite then
-  begin
-    AFileList:= FWcxArchiveFileSource.ArchiveFileList.LockList;
-    try
-      // Populate archive file list
-      for Index:= 0 to AFileList.Count - 1 do
-      begin
-        Item:= TObjectEx(AFileList[Index]).Clone;
-        FFileList.Add(UTF8LowerCase(TWcxHeader(Item).FileName), Item);
-      end;
-    finally
-      FWcxArchiveFileSource.ArchiveFileList.UnlockList;
-    end;
-  end;
 end;
 
 function TWcxArchiveCopyInOperation.doWcxPackFiles(const files: TFiles): Integer;
@@ -253,8 +222,12 @@ begin
 
     // Convert TFiles into String;
     sFileList:= GetFileList(currentFullFiles);
-    // Nothing to pack (user skip all files)
-    if sFileList = #0 then Exit;
+    if sFileList = #0 then begin
+      // if the target path is not empty, an empty subdirectory should be created.
+      // therefore, it should not return here.
+      if sDestPath = EmptyStr then
+        Exit;
+    end;
 
     Result:= FWcxArchiveFileSource.WcxModule.WcxPackFiles(
       FWcxArchiveFileSource.ArchiveFileName,
@@ -369,42 +342,49 @@ var
   I: Integer;
   SubPath: String;
   FileName: String;
-  Header: TWCXHeader;
+  ExistFilenameList: TStringHashListUtf8;
   ArchiveExists: Boolean;
+  Header: TWCXHeader;
 begin
   Result := '';
 
-  ArchiveExists := FFileList.Count > 0;
-  SubPath := UTF8LowerCase(ExcludeFrontPathDelimiter(TargetPath));
+  FWcxArchiveFileSource.ArchiveFileList.LockList;
+  try
+    ExistFilenameList := FWcxArchiveFileSource.ArchiveFileNameList;
+    ArchiveExists := ExistFilenameList.Count > 0;
+    SubPath := UTF8LowerCase(ExcludeFrontPathDelimiter(TargetPath));
 
-  for I := 0 to theFiles.Count - 1 do
-    begin
-      // Filenames must be relative to the current directory.
-      FileName := ExtractDirLevel(theFiles.Path, theFiles[I].FullPath);
-      if FileName = EmptyStr then
-        continue;
+    for I := 0 to theFiles.Count - 1 do
+      begin
+        // Filenames must be relative to the current directory.
+        FileName := ExtractDirLevel(theFiles.Path, theFiles[I].FullPath);
+        if FileName = EmptyStr then
+          continue;
 
-      // Special treatment of directories.
-      if theFiles[i].IsDirectory then
-      begin
-        // TC ends paths to directories to be packed with '\'.
-        FileName := IncludeTrailingPathDelimiter(FileName);
-      end
-      // Need to check file existence
-      else if ArchiveExists then
-      begin
-        Header := TWcxHeader(FFileList[SubPath + UTF8LowerCase(FileName)]);
-        if Assigned(Header) then
+        // Special treatment of directories.
+        if theFiles[i].IsDirectory then
         begin
-          if FileExists(theFiles[I], Header) = fsoofeSkip then
-            Continue;
+          // TC ends paths to directories to be packed with '\'.
+          FileName := IncludeTrailingPathDelimiter(FileName);
+        end
+        // Need to check file existence
+        else if ArchiveExists then
+        begin
+          Header := TWcxHeader(ExistFilenameList[SubPath + UTF8LowerCase(FileName)]);
+          if Assigned(Header) then
+          begin
+            if FileExists(theFiles[I], Header) = fsoofeSkip then
+              Continue;
+          end;
         end;
+
+        Result := Result + FileName + #0;
       end;
 
-      Result := Result + FileName + #0;
-    end;
-
-  Result := Result + #0;
+    Result := Result + #0;
+  finally
+    FWcxArchiveFileSource.ArchiveFileList.UnlockList;
+  end;
 end;
 
 procedure TWcxArchiveCopyInOperation.SetTarBefore(const AValue: Boolean);
@@ -476,12 +456,6 @@ begin
     else
       WcxSetProcessDataProc(hArcData, @ProcessDataProcAT, @ProcessDataProcWT);
   end;
-end;
-
-procedure TWcxArchiveCopyInOperation.DoReloadFileSources;
-begin
-  if not FCreateNew then
-    TargetFileSource.Reload( EmptyStr );  // force reloading all open paths
 end;
 
 procedure TWcxArchiveCopyInOperation.QuestionActionHandler(
