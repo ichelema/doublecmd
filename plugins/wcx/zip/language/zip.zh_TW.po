@@ -3,68 +3,68 @@ msgstr "Content-Type: text/plain; charset=UTF-8"
 
 #: tdialogbox.caption
 msgid "Zip plugin configuration"
-msgstr "Настройки Zip-плагина"
+msgstr "Zip 插件設定"
 
 #: tdialogbox.lblAbout.caption
 msgid "Zip plugin supports PKZIP-compatible, TAR, XZ, GZip, Zstandard and BZip2 data compression and archiving."
-msgstr "Плагин Zip поддерживает PKZIP-совместимое, TAR, XZ, GZip, Zstandard и BZip2 сжатие и архивирование данных."
+msgstr "Zip 插件支援 PKZIP 相容、TAR、XZ、GZip、Zstandard 以及 BZip2 數據壓縮與封存。"
 
 #: tdialogbox.gbCompression.caption
 msgid "Compression"
-msgstr "Cжатие"
+msgstr "壓縮"
 
 #: tdialogbox.gbCompression.lblArchiveFormat.caption
 msgid "Archive format:"
-msgstr "Формат архива:"
+msgstr "封存格式："
 
 #: tdialogbox.gbCompression.lblCompressionMethod.caption
 msgid "Compression method:"
-msgstr "Метод сжатия:"
+msgstr "壓縮方法："
 
 #: tdialogbox.gbCompression.lblCompressionLevel.caption
 msgid "Compression level:"
-msgstr "Уровень сжатия:"
+msgstr "壓縮等級："
 
 #: tdialogbox.chkFollowLinks.caption
 msgid "Follow Links (pack the target files)"
-msgstr "Следовать ссылкам (упаковывать целевые файлы)"
+msgstr "跟隨符號連結（打包連結指向的目標檔案）"
 
 #: tdialogbox.chkTarAutoHandle.caption
 msgid "Open *.tar.xyz archives at one step (slowly with big archives)"
-msgstr "Открывать архивы *.tar.xyz за один шаг (медленно с большими архивами)"
+msgstr "一步式開啟 *.tar.xyz 封存檔（大型封存檔處理速度較慢）"
 
 #: tdialogbox.btnCancel.caption
 msgid "Cancel"
-msgstr "Отмена"
+msgstr "取消"
 
 #: tdialogbox.btnOK.caption
 msgid "OK"
-msgstr "OK"
+msgstr "確定"
 
 #: ziplng.rscompressionmethodstore
 msgid "Store"
-msgstr "Без сжатия"
+msgstr "僅儲存"
 
 #: ziplng.rscompressionmethodoptimal
 msgid "Optimal (2x slower)"
-msgstr "Оптимальный (медленно)"
+msgstr "最佳（慢2倍）"
 
 #: ziplng.rscompressionlevelfastest
 msgid "Fastest"
-msgstr "Скоростной"
+msgstr "最快"
 
 #: ziplng.rscompressionlevelfast
 msgid "Fast"
-msgstr "Быстрый"
+msgstr "快"
 
 #: ziplng.rscompressionlevelnormal
 msgid "Normal"
-msgstr "Нормальный"
+msgstr "標準"
 
 #: ziplng.rscompressionlevelmaximum
 msgid "Maximum"
-msgstr "Максимальный"
+msgstr "最大"
 
 #: ziplng.rscompressionlevelultra
 msgid "Ultra"
-msgstr "Ультра"
+msgstr "極致"

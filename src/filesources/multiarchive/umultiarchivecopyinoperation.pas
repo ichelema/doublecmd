@@ -37,6 +37,7 @@ type
     FTempFile: String;
     FErrorLevel: LongInt;
     FCommandLine: String;
+    FNeedExtraTargetSubdirSupport: Boolean;
     procedure OnReadLn(str: string);
     procedure OperationProgressHandler;
     procedure OnQueryString(str: string);
@@ -65,7 +66,7 @@ implementation
 
 uses
   LazUTF8, FileUtil, DCStrUtils, uDCUtils, uMultiArc, uLng, WcxPlugin, uFileSourceOperationUI,
-  uFileSystemFileSource, uFileSystemUtil, uMultiArchiveUtil, DCOSUtils, uOSUtils,
+  uFileSystemUtil, uMultiArchiveUtil, DCOSUtils, uOSUtils, uFileProcs,
   uShowMsg, uAdministrator,
   uArchiveFileSourceUtil;
 
@@ -103,10 +104,7 @@ begin
   end;
 
   if (TargetPath <> PathDelim) and (Pos('%R', FCommandLine) = 0) then
-  begin
-    AskQuestion('', rsMsgErrNotSupported, [fsourOk], fsourOk, fsourOk);
-    RaiseAbortOperation;
-  end;
+    FNeedExtraTargetSubdirSupport:= True;
 
   FExProcess:= TExProcess.Create(EmptyStr);
   FExProcess.OnReadLn:= @OnReadLn;
@@ -146,9 +144,114 @@ var
   oneByOne: Boolean;
   sRootPath: String;
   sDestPath: String;
+  workingPath: String;
   sReadyCommand: String;
   uselessTotalFiles: Int64;
   uselessTotalBytes: Int64;
+
+  {
+    for cases where the archive program itself does't support archiving to a
+    specified subdirectory of the archive file, support is provided indirectly here.
+    it means that %R is not supported, for example, 7z.
+
+    the implementation is as follows:
+    1. select a dedicated system temporary folder
+    2. create the subdirectory struct for the corresponding destination in archive file
+       in the system temporary folder
+    3. link to the source files to be archived via hard links
+    4. set the working folder to the system temporary folder
+
+    this additional support enables MultiArchiveFileSource to:
+    1. support creating directories at specified point, previously only possible
+       in the root
+    2. support Synchronize dirs
+  }
+  function createWorkingTree(
+    const workingBasePath: String;
+    const targetBasePath: String;
+    const files: TFiles): Boolean;
+  var
+    sourceBasePath: String;
+    sourcePath: String;
+    workingPath: String;
+    i: Integer;
+    f: TFile;
+  begin
+    sourceBasePath:= files.Path;
+    workingPath:= workingBasePath + targetBasePath;
+
+    Result:= mbForceDirectory(workingPath);
+    if NOT Result then
+      Exit;
+
+    for i:= 0 to files.Count-1 do begin
+      f:= files[i];
+      sourcePath:= sourceBasePath + f.FullPath;
+      workingPath:= workingBasePath + targetBasePath + f.FullPath;
+      if f.IsDirectory then begin
+        Result:= mbForceDirectory(workingPath);
+      end else begin
+        Result:= CreateHardLink(sourcePath, workingPath);
+      end;
+      if NOT Result then
+        Exit;
+    end;
+
+    // the attributes copying must be done after the entire Working Tree has been built,
+    // because adding files will affect the directory's attributes.
+    for i:= 0 to files.Count-1 do begin
+      f:= files[i];
+      if f.IsDirectory then begin
+        sourcePath:= sourceBasePath + f.FullPath;
+        workingPath:= workingBasePath + targetBasePath + f.FullPath;
+        mbFileCopyAttr(sourcePath, workingPath, [caoCopyTime,caoCopyPermissions,caoCopyOwnership]);
+      end;
+    end;
+  end;
+
+  function prepareForTargetPath: Boolean;
+  var
+    tpSourcePath: String;
+    tpTempPrefix: String;
+    tpTempSuffix: String;
+  begin
+    Result:= True;
+    tpSourcePath:= currentFullFiles.Path;
+
+    if FNeedExtraTargetSubdirSupport then begin
+      sDestPath:= PathDelim;
+      sRootPath:= EmptyStr;
+      tpTempPrefix:= tpSourcePath+'.~'+ExtractOnlyFileName(FMultiArchiveFileSource.ArchiveFileName);
+      tpTempSuffix:= ExtractOnlyFileExt(FMultiArchiveFileSource.ArchiveFileName) + '.tmp';
+      workingPath:= GetTempName(tpTempPrefix, tpTempSuffix);
+      Result:= workingPath <> EmptyStr;
+    end else begin
+      sDestPath:= ExcludeFrontPathDelimiter(TargetPath);
+      sDestPath:= ExcludeTrailingPathDelimiter(sDestPath);
+      sRootPath:= tpSourcePath;
+      workingPath:= tpSourcePath;
+    end;
+
+    if NOT Result then
+      Exit;
+
+    ChangeFileListRoot(EmptyStr, currentFullFiles);
+
+    if FNeedExtraTargetSubdirSupport then begin
+      Result:= createWorkingTree(workingPath, TargetPath, currentFullFiles);
+      if NOT Result then
+        Exit;
+      ChangeFileListRoot(ExcludeLeadingPathDelimiter(TargetPath), currentFullFiles);
+    end;
+  end;
+
+  procedure cleanupForTargetPath;
+  begin
+    if NOT FNeedExtraTargetSubdirSupport then
+      Exit;
+    DeleteDirectory(workingPath, False);
+  end;
+
 begin
   Result:= -1;
 
@@ -167,11 +270,8 @@ begin
         uselessTotalBytes);     // gets full list of files (recursive)
     end;
 
-    sDestPath:= ExcludeFrontPathDelimiter(TargetPath);
-    sDestPath:= ExcludeTrailingPathDelimiter(sDestPath);
-    sRootPath:= currentFullFiles.Path;
-
-    ChangeFileListRoot(EmptyStr, currentFullFiles);
+    if NOT prepareForTargetPath() then
+      Exit;
 
     for I:= currentFullFiles.Count - 1 downto 0 do begin
       if oneByOne then begin
@@ -198,8 +298,7 @@ begin
                                             );
       OnReadLn(sReadyCommand);
 
-      // Set archiver current path to file list root
-      FExProcess.Process.CurrentDirectory:= sRootPath;
+      FExProcess.Process.CurrentDirectory:= workingPath;
       FExProcess.SetCmdLine(sReadyCommand);
       FExProcess.Execute;
 
@@ -215,6 +314,7 @@ begin
   finally
     if currentFullFiles <> FFullFilesTree then
       currentFullFiles.Free;
+    cleanupForTargetPath;
   end;
 end;
 
@@ -401,6 +501,13 @@ begin
     ArchiveSize := mbFileSize(FMultiArchiveFileSource.ArchiveFileName);
     if ArchiveSize > DoneBytes then
       DoneBytes := ArchiveSize;
+    {
+      the calculation in FillAndCount() does not match the size of the generated archive file,
+      especially when accounting for symlink handling, so this check has been added
+      to prevent reporting an erroneous progress exceeding 100%
+    }
+    if DoneBytes > TotalBytes then
+      TotalBytes:= DoneBytes + 1;
 
     UpdateStatistics(FStatistics);
   end;

@@ -18,7 +18,6 @@ type
     ['{71BF41D3-1E40-4E84-83BB-B6D3E0DEB6FC}']
 
     function GetPassword: String;
-    function GetArcFileList: TThreadObjectList;
     function GetMultiArcItem: TMultiArcItem;
 
     function FileIsLink(ArchiveItem: TArchiveItem): Boolean;
@@ -30,7 +29,6 @@ type
                            out FilesCount: Int64; out FilesSize: Int64);
 
     property Password: String read GetPassword;
-    property ArchiveFileList: TThreadObjectList read GetArcFileList;
     property MultiArcItem: TMultiArcItem read GetMultiArcItem;
   end;
 
@@ -40,7 +38,6 @@ type
   private
     FPassword: String;
     FOutputParser: TOutputParser;
-    FArcFileList : TThreadObjectList;
     FMultiArcItem: TMultiArcItem;
     FAllDirsList,
     FExistsDirList: TStringHashListUtf8;
@@ -51,19 +48,19 @@ type
     function GetMultiArcItem: TMultiArcItem;
     procedure OnGetArchiveItem(ArchiveItem: TArchiveItem);
 
-    function ReadArchive(bCanYouHandleThisFile : Boolean = False): Boolean;
+    function getArchiveItemByPath(const path: String): TArchiveItem;
+
+    // FArcFileList should be locked before calling CreateArcFilenameList()
+    procedure buildArcFilenameList;
 
     function FileIsLink(ArchiveItem: TArchiveItem): Boolean;
     function FileIsDirectory(ArchiveItem: TArchiveItem): Boolean;
 
-    function GetArcFileList: TThreadObjectList;
-
   protected
     function GetPacker: String; override;
     function GetSupportedFileProperties: TFilePropertiesTypes; override;
-    function SetCurrentWorkingDirectory(NewDir: String): Boolean; override;
 
-    procedure DoReload(const PathsToReload: TPathsArray); override;
+    function ReadArchive: Boolean; override;
 
   public
     procedure FillAndCount(const FileMask: String; Files: TFiles;
@@ -83,6 +80,8 @@ type
 
     // Retrieve some properties of the file source.
     function GetProperties: TFileSourceProperties; override;
+
+    function FileSystemEntryExists(const Path: String; const Options: TFileSourceExistsOptions): TFileSourceExistsResult; override;
 
     // These functions create an operation object specific to the file source.
     function CreateListOperation(TargetPath: String): TFileSourceOperation; override;
@@ -118,7 +117,6 @@ type
     class function CheckAddonByName(const anArchiveFileName: String): Boolean;
 
     property Password: String read GetPassword;
-    property ArchiveFileList: TThreadObjectList read GetArcFileList;
     property MultiArcItem: TMultiArcItem read GetMultiArcItem;
   end;
 
@@ -246,7 +244,6 @@ begin
   inherited Create(anArchiveFileSource, anArchiveFileName);
 
   FMultiArcItem := aMultiArcItem.Clone;
-  FArcFileList := TThreadObjectList.Create;
   FOutputParser := TOutputParser.Create(FMultiArcItem, anArchiveFileName);
   FOutputParser.OnGetArchiveItem:= @OnGetArchiveItem;
 
@@ -280,7 +277,6 @@ begin
   inherited Destroy;
 
   FreeAndNil(FOutputParser);
-  FreeAndNil(FArcFileList);
   FreeAndNil(FMultiArcItem);
 end;
 
@@ -369,46 +365,49 @@ begin
   Result := [fspSynchronizable];
 end;
 
+function TMultiArchiveFileSource.FileSystemEntryExists(
+  const Path: String;
+  const Options: TFileSourceExistsOptions): TFileSourceExistsResult;
+var
+  item: TArchiveItem;
+  exists: Boolean;
+begin
+  Result:= TFileSourceExistsResult.notExist;
+  if Options = [] then
+    Exit;
+
+  // the archive root is a directory but never an archive entry
+  if ExcludeTrailingPathDelimiter(Path) = ExcludeTrailingPathDelimiter(GetRootDir) then
+  begin
+    if TFileSourceExistsOption.needDir in Options then
+      Result:= TFileSourceExistsResult.exists;
+    Exit;
+  end;
+
+  FArcFileList.LockList;
+  try
+    item:= self.getArchiveItemByPath(Path);
+    if item <> nil then begin
+      if Options = [TFileSourceExistsOption.needFile] then
+        exists:= NOT FileIsDirectory(item)
+      else if Options = [TFileSourceExistsOption.needDir] then
+        exists:= FileIsDirectory(item)
+      else
+        exists:= True;
+    end else begin
+      exists:= False;
+    end;
+  finally
+    FArcFileList.UnlockList;
+  end;
+
+  if exists then
+    Result:= TFileSourceExistsResult.exists;
+end;
+
 function TMultiArchiveFileSource.GetSupportedFileProperties: TFilePropertiesTypes;
 begin
   Result := inherited GetSupportedFileProperties + [fpLink, fpComment];
-end;
-
-function TMultiArchiveFileSource.SetCurrentWorkingDirectory(NewDir: String): Boolean;
-var
-  I: Integer;
-  AFileList: TList;
-  ArchiveItem: TArchiveItem;
-begin
-  Result := False;
-  if Length(NewDir) > 0 then
-  begin
-    if NewDir = GetRootDir() then
-      Exit(True);
-
-    NewDir := IncludeTrailingPathDelimiter(NewDir);
-
-    AFileList:= FArcFileList.LockList;
-    try
-      // Search file list for a directory with name NewDir.
-      for I := 0 to AFileList.Count - 1 do
-      begin
-        ArchiveItem := TArchiveItem(AFileList.Items[I]);
-        if FileIsDirectory(ArchiveItem) and (Length(ArchiveItem.FileName) > 0) then
-        begin
-          if NewDir = IncludeTrailingPathDelimiter(GetRootDir() + ArchiveItem.FileName) then
-            Exit(True);
-        end;
-      end;
-    finally
-      FArcFileList.UnlockList;
-    end;
-  end;
-end;
-
-function TMultiArchiveFileSource.GetArcFileList: TThreadObjectList;
-begin
-  Result := FArcFileList;
 end;
 
 function TMultiArchiveFileSource.GetMultiArcItem: TMultiArcItem;
@@ -541,6 +540,15 @@ begin
   FArcFileList.Add(ArchiveItem);
 end;
 
+function TMultiArchiveFileSource.getArchiveItemByPath(const path: String): TArchiveItem;
+var
+  internalPath: String;
+begin
+  internalPath:= ExcludeLeadingPathDelimiter(path);
+  internalPath:= ExcludeTrailingPathDelimiter(internalPath);
+  Result := TArchiveItem(FArcFilenameList[internalPath]);
+end;
+
 function TMultiArchiveFileSource.GetPacker: String;
 begin
   Result:= FMultiArcItem.FPacker;
@@ -551,31 +559,23 @@ begin
   Result:= FPassword;
 end;
 
-function TMultiArchiveFileSource.ReadArchive(bCanYouHandleThisFile : Boolean = False): Boolean;
+function TMultiArchiveFileSource.ReadArchive: Boolean;
 var
   I : Integer;
   AFileList: TList;
   ArchiveTime: TSystemTime;
   ArchiveItem: TArchiveItem;
 begin
-  if not mbFileAccess(ArchiveFileName, fmOpenRead) then
-    begin
-      Result := False;
-      Exit;
-    end;
+  Result:= False;
 
-  {
-  if bCanYouHandleThisFile and (Assigned(WcxModule.CanYouHandleThisFile) or Assigned(WcxModule.CanYouHandleThisFileW)) then
-    begin
-      Result := WcxModule.WcxCanYouHandleThisFile(ArchiveFileName);
-      if not Result then Exit;
-    end;
-  }
-
-  { Get File List }
   AFileList:= FArcFileList.LockList;
   try
+    FArcFilenameList.Clear;
     AFileList.Clear;
+
+    if not mbFileAccess(ArchiveFileName, fmOpenRead) then
+      Exit;
+
     // Get archive file time
     DateTimeToSystemTime(FileTimeToDateTime(mbFileAge(ArchiveFileName)), ArchiveTime);
 
@@ -639,10 +639,25 @@ begin
     end;
 
   finally
+    // because ArcFilenameList has become commonly used, build it while updating ArcFileList
+    buildArcFilenameList;
     FArcFileList.UnlockList;
   end;
 
   Result := True;
+end;
+
+procedure TMultiArchiveFileSource.buildArcFilenameList;
+var
+  itemList: TList;
+  item: TArchiveItem;
+  i: Integer;
+begin
+  itemList:= FArcFileList.List;
+  for i:= 0 to itemList.Count-1 do begin
+    item:= TArchiveItem(itemList[i]);
+    FArcFilenameList.Add(item.FileName, item);
+  end;
 end;
 
 function TMultiArchiveFileSource.FileIsLink(ArchiveItem: TArchiveItem): Boolean;
@@ -653,15 +668,6 @@ end;
 function TMultiArchiveFileSource.FileIsDirectory(ArchiveItem: TArchiveItem): Boolean;
 begin
   Result:= (ArchiveItem.Attributes and FDirectoryAttribute <> 0);
-end;
-
-procedure TMultiArchiveFileSource.DoReload(const PathsToReload: TPathsArray);
-begin
-  // reset FAttributeData (updated timestamp) in TArchiveFileSource
-  // avoids Changed() still return True after ReadArchive()
-  self.Changed;
-
-  ReadArchive;
 end;
 
 procedure TMultiArchiveFileSource.FillAndCount(const FileMask: String; Files: TFiles;
